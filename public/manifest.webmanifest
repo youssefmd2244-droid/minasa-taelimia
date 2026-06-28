@@ -1,0 +1,12 @@
+{
+  "name": "EduVerse",
+  "short_name": "EduVerse",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050510",
+  "theme_color": "#050510",
+  "description": "منصة EduVerse التعليمية",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": []
+}
