@@ -4,6 +4,8 @@ import "./index.css";
 import App from "./App";
 import { bootstrapCapacitor } from "./mobile/capacitor";
 
+// يهيّئ جسر Capacitor فقط عند التشغيل داخل تطبيق أندرويد/iOS أصلي —
+// لا يفعل شيئاً على الويب العادي (Capacitor.isNativePlatform() === false).
 bootstrapCapacitor();
 
 createRoot(document.getElementById("root")!).render(
