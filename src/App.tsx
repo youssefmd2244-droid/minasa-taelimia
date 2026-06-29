@@ -4,12 +4,12 @@ import { Settings } from 'lucide-react';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
-import HeroCarousel from './components/HeroCarousel';
-import CinematicHero from './components/CinematicHero';
-import VexStyleHero from './components/VexStyleHero';
-import AcademyShowcase from './components/AcademyShowcase';
-import AdminDashboard from './components/AdminDashboard';
-import DeveloperCredit from './components/DeveloperCredit';
+import HeroCarousel from './components/landing/HeroCarousel';
+import HeroVideo from './components/landing/HeroVideo';
+import HeroVex from './components/landing/HeroVex';
+import AcademyShowcase from './components/landing/AcademyShowcase';
+import AdminDashboard from './components/admin/AdminDashboard';
+import DeveloperCredit from './components/landing/DeveloperCredit';
 
 function AppContent() {
   const { t, dir } = useLanguage();
@@ -166,8 +166,8 @@ function AppContent() {
 
       {/* ─── Landing Sections ─── */}
       <HeroCarousel />
-      <CinematicHero />
-      <VexStyleHero />
+      <HeroVideo />
+      <HeroVex />
       <AcademyShowcase />
 
       {/* ─── Developer Credit + Global Presence ─── */}
