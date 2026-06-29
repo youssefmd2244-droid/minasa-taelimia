@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '../i18n/LanguageContext';
 
-const IMAGES = [
-  { subject: 'الرياضيات', bg: '#F4845F', panel: '#F79B7F', icon: '∑' },
-  { subject: 'العلوم', bg: '#6BBF7A', panel: '#85CC92', icon: '⚗' },
-  { subject: 'اللغة', bg: '#E882B4', panel: '#ED9DC4', icon: 'Aا' },
-  { subject: 'الفنون', bg: '#6EB5FF', panel: '#8DC4FF', icon: '🎨' },
+const SUBJECTS_KEYS = [
+  { key: 'hero_subject_math' as const, bg: '#F4845F', panel: '#F79B7F', icon: '∑' },
+  { key: 'hero_subject_science' as const, bg: '#6BBF7A', panel: '#85CC92', icon: '⚗' },
+  { key: 'hero_subject_language' as const, bg: '#E882B4', panel: '#ED9DC4', icon: 'Aا' },
+  { key: 'hero_subject_art' as const, bg: '#6EB5FF', panel: '#8DC4FF', icon: '🎨' },
 ];
 
 function BookSVG({ color, panelColor, icon }: { color: string; panelColor: string; icon: string }) {
@@ -35,6 +36,7 @@ function BookSVG({ color, panelColor, icon }: { color: string; panelColor: strin
 }
 
 export default function HeroCarousel() {
+  const { t, dir } = useLanguage();
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -78,26 +80,30 @@ export default function HeroCarousel() {
     }
   };
 
+  const current = SUBJECTS_KEYS[activeIndex];
+
   return (
-    <section className="relative w-full overflow-hidden snap-section" style={{ height: '100vh', backgroundColor: IMAGES[activeIndex].bg, transition: 'background-color 650ms cubic-bezier(0.4,0,0.2,1)' }}>
+    <section className="relative w-full overflow-hidden snap-section" style={{ height: '100vh', backgroundColor: current.bg, transition: 'background-color 650ms cubic-bezier(0.4,0,0.2,1)' }}>
       <div className="absolute inset-0 pointer-events-none grain-overlay" style={{ zIndex: 50, opacity: 0.3 }} />
       <motion.div className="absolute top-0 left-0 right-0 z-40 px-4 sm:px-8 pt-20 sm:pt-6" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }}>
         <span className="text-xs font-semibold uppercase" style={{ color: 'white', opacity: 0.9, letterSpacing: '0.18em' }}>EDUVERSE</span>
       </motion.div>
       <div className="absolute inset-x-0 flex items-center justify-center pointer-events-none select-none" style={{ top: '10%', zIndex: 2 }}>
         <motion.span className="whitespace-nowrap" style={{ fontFamily: "'Cairo', sans-serif", fontSize: 'clamp(70px, 24vw, 320px)', fontWeight: 900, color: 'white', opacity: 0.08, lineHeight: 1 }}
-          initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.08, scale: 1 }} transition={{ duration: 1.2, ease: 'easeOut' }}>تعلّم</motion.span>
+          initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.08, scale: 1 }} transition={{ duration: 1.2, ease: 'easeOut' }}>
+          {t('hero_ghost')}
+        </motion.span>
       </div>
       <motion.div className="absolute inset-0" style={{ zIndex: 15, cursor: dragState === 'dragging' ? 'grabbing' : 'grab' }} drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.2} dragMomentum={false} onDragEnd={handleDragEnd} onPointerDown={() => setDragState('dragging')} onPointerUp={() => setDragState('idle')} onPointerLeave={() => setDragState('idle')}>
         <AnimatePresence mode="popLayout">
-          {IMAGES.map((img, i) => <motion.div key={`${i}-${getRole(i)}`} className="absolute" style={rs(getRole(i))} initial={false}><BookSVG color={img.bg} panelColor={img.panel} icon={img.icon} /></motion.div>)}
+          {SUBJECTS_KEYS.map((img, i) => <motion.div key={`${i}-${getRole(i)}`} className="absolute" style={rs(getRole(i))} initial={false}><BookSVG color={img.bg} panelColor={img.panel} icon={img.icon} /></motion.div>)}
         </AnimatePresence>
       </motion.div>
-      <motion.div className="absolute bottom-0 left-0 right-0 z-40 px-4 sm:px-12 pb-6 sm:pb-16" style={{ maxWidth: '380px' }} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.6 }}>
+      <motion.div className="absolute bottom-0 z-40 px-4 sm:px-12 pb-6 sm:pb-16" style={{ maxWidth: '380px', left: dir === 'ltr' ? 0 : undefined, right: dir === 'rtl' ? undefined : undefined }} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.6 }}>
         <AnimatePresence mode="wait">
           <motion.div key={activeIndex} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }}>
-            <p className="text-lg sm:text-2xl font-bold text-white mb-1">{IMAGES[activeIndex].subject}</p>
-            <p className="hidden sm:block text-sm text-white/80 mb-4 leading-relaxed">كورسات مصممة من أفضل المعلمين، منظمة لتحقيق تقدم حقيقي. مستويات واضحة، شهادات فعلية، نتائج حقيقية.</p>
+            <p className="text-lg sm:text-2xl font-bold text-white mb-1">{t(current.key)}</p>
+            <p className="hidden sm:block text-sm text-white/80 mb-4 leading-relaxed">{t('hero_description')}</p>
           </motion.div>
         </AnimatePresence>
         <div className="flex gap-3 mt-3">
@@ -106,10 +112,12 @@ export default function HeroCarousel() {
         </div>
       </motion.div>
       <motion.div className="absolute bottom-0 right-0 z-40 px-4 sm:px-10 pb-6 sm:pb-16" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6, duration: 0.6 }}>
-        <a href="#courses" className="flex items-center gap-2 text-white no-underline" style={{ fontFamily: "'Cairo', sans-serif", fontSize: 'clamp(16px, 3.5vw, 42px)', fontWeight: 700, lineHeight: 1.1 }}>استكشف الكورسات <ArrowRight className="w-5 h-5 sm:w-7 sm:h-7" color="white" /></a>
+        <a href="#courses" className="flex items-center gap-2 text-white no-underline" style={{ fontFamily: "'Cairo', sans-serif", fontSize: 'clamp(16px, 3.5vw, 42px)', fontWeight: 700, lineHeight: 1.1 }}>
+          {t('hero_explore')} <ArrowRight className="w-5 h-5 sm:w-7 sm:h-7" color="white" />
+        </a>
       </motion.div>
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex gap-2">
-        {IMAGES.map((_, i) => <div key={i} className="rounded-full transition-all duration-300" style={{ width: i === activeIndex ? 24 : 8, height: 8, background: i === activeIndex ? 'white' : 'rgba(255,255,255,0.3)' }} />)}
+        {SUBJECTS_KEYS.map((_, i) => <div key={i} className="rounded-full transition-all duration-300" style={{ width: i === activeIndex ? 24 : 8, height: 8, background: i === activeIndex ? 'white' : 'rgba(255,255,255,0.3)' }} />)}
       </div>
     </section>
   );
