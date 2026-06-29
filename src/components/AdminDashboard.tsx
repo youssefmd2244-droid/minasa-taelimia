@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Lock, Settings, BookOpen, FileText, MessageSquare, BarChart3, Trash2, Plus, Edit3, X,
   Check, Eye, EyeOff, Palette, Globe, Save, ArrowLeft, Home, Star, Shield, Power,
   Lightbulb, Bell, Image as ImageIcon, Video, UploadCloud, Type, Mic, MicOff, Download,
-  File, Music, StopCircle, PlayCircle,
+  File, Music, StopCircle, PlayCircle, ZoomIn,
 } from 'lucide-react';
 
 const DEFAULT_PASSWORD = '20042007';
 const REQUIRED_AUTH_CODE = 'Yy2004//';
+const STORAGE_KEY = 'eduverse_admin_data';
 
 type Tab = 'dashboard' | 'settings' | 'sections' | 'content' | 'record' | 'files' | 'comments' | 'analytics' | 'trash';
 
@@ -46,6 +47,88 @@ interface Comment {
   replyText: string | null; isVisible: boolean; createdAt: string;
 }
 
+interface AdminData {
+  sections: Section[];
+  contentItems: ContentItem[];
+  records: RecordItem[];
+  files: FileItem[];
+  comments: Comment[];
+  appName: string;
+  themeColors: string[];
+  maintenanceMode: boolean;
+  rgbLighting: boolean;
+  notifications: boolean;
+  downloadFeatureEnabled: boolean;
+}
+
+const DEFAULT_DATA: AdminData = {
+  appName: 'EduVerse',
+  themeColors: ['#F4845F', '#6BBF7A', '#E882B4', '#6EB5FF'],
+  maintenanceMode: false,
+  rgbLighting: true,
+  notifications: true,
+  downloadFeatureEnabled: false,
+  sections: [
+    { id: 1, title: 'المستوى الأول — رياضيات', isVisible: true, isDeleted: false, displayOrder: 1 },
+    { id: 2, title: 'المستوى الثاني — علوم', isVisible: true, isDeleted: false, displayOrder: 2 },
+    { id: 3, title: 'المستوى الأول — لغة عربية', isVisible: true, isDeleted: false, displayOrder: 3 },
+    { id: 4, title: 'المستوى الثاني — فنون', isVisible: true, isDeleted: false, displayOrder: 4 },
+  ],
+  contentItems: [
+    { id: 1, sectionId: 1, title: 'أساسيات الجبر', type: 'video', contentBody: 'شرح مبسط', fileUrl: '', isFeatured: true, showOnHome: true, allowDownload: false, isDeleted: false },
+    { id: 2, sectionId: 2, title: 'التجارب العلمية', type: 'pdf', contentBody: '', fileUrl: '', isFeatured: true, showOnHome: true, allowDownload: false, isDeleted: false },
+  ],
+  records: [],
+  files: [],
+  comments: [
+    { id: 1, contentId: 1, userId: 'user1', commentText: 'شرح رائع!', replyText: 'شكراً لك', isVisible: true, createdAt: '2025-01-15' },
+    { id: 2, contentId: 2, userId: 'user2', commentText: 'هل يوجد ملف PDF؟', replyText: null, isVisible: true, createdAt: '2025-01-16' },
+  ],
+};
+
+/* ─── Persistent Storage ─── */
+function loadData(): AdminData {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return { ...DEFAULT_DATA, ...JSON.parse(raw) };
+  } catch {}
+  return DEFAULT_DATA;
+}
+
+function saveData(data: AdminData) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    // Also request persistent storage
+    if (navigator.storage?.persist) navigator.storage.persist();
+  } catch {}
+}
+
+/* ─── Media Viewer ─── */
+function MediaViewer({ src, type, onClose }: { src: string; type: 'image' | 'video'; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[999] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(20px)' }}
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center text-white"
+        style={{ background: 'rgba(255,255,255,0.15)' }}
+        onClick={onClose}
+      >
+        <X size={20} />
+      </button>
+      <div onClick={e => e.stopPropagation()}>
+        {type === 'image' ? (
+          <img src={src} alt="" className="max-w-full max-h-[85vh] rounded-2xl object-contain" style={{ boxShadow: '0 0 60px rgba(0,0,0,0.8)' }} />
+        ) : (
+          <video src={src} controls autoPlay className="max-w-full max-h-[85vh] rounded-2xl" style={{ boxShadow: '0 0 60px rgba(0,0,0,0.8)' }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── helpers ─── */
 const readFile = (file: File): Promise<string> =>
   new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
@@ -74,7 +157,10 @@ function ToggleRow({ icon, label, description, checked, onChange, danger }: {
 }
 
 /* ─── Attachment uploader ─── */
-function AttachmentPicker({ attachments, onChange }: { attachments: Attachment[]; onChange: (a: Attachment[]) => void }) {
+function AttachmentPicker({ attachments, onChange, onView }: {
+  attachments: Attachment[]; onChange: (a: Attachment[]) => void;
+  onView?: (src: string, type: 'image' | 'video') => void;
+}) {
   const addAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     const url = await readFile(file);
@@ -87,11 +173,22 @@ function AttachmentPicker({ attachments, onChange }: { attachments: Attachment[]
     <div>
       <div className="flex flex-wrap gap-2 mb-2">
         {attachments.map((a, i) => (
-          <div key={i} className="relative rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-            {a.type === 'image' ? <img src={a.url} alt="" className="w-16 h-16 object-cover" /> :
-              a.type === 'video' ? <div className="w-16 h-16 flex items-center justify-center bg-black/40"><Video size={20} className="text-green-400" /></div> :
-                <div className="w-16 h-16 flex items-center justify-center bg-black/40"><Music size={20} className="text-purple-400" /></div>}
-            <button onClick={() => remove(i)} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center"><X size={10} className="text-white" /></button>
+          <div key={i} className="relative rounded-lg overflow-hidden group cursor-pointer" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
+            {a.type === 'image' ? (
+              <div onClick={() => onView?.(a.url, 'image')}>
+                <img src={a.url} alt="" className="w-16 h-16 object-cover" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <ZoomIn size={14} className="text-white" />
+                </div>
+              </div>
+            ) : a.type === 'video' ? (
+              <div className="w-16 h-16 flex items-center justify-center bg-black/40" onClick={() => onView?.(a.url, 'video')}>
+                <Video size={20} className="text-green-400" />
+              </div>
+            ) : (
+              <div className="w-16 h-16 flex items-center justify-center bg-black/40"><Music size={20} className="text-purple-400" /></div>
+            )}
+            <button onClick={() => remove(i)} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center z-10"><X size={10} className="text-white" /></button>
           </div>
         ))}
       </div>
@@ -104,8 +201,9 @@ function AttachmentPicker({ attachments, onChange }: { attachments: Attachment[]
 }
 
 /* ─── Record Tab ─── */
-function RecordTab({ records, setRecords, sections }: {
+function RecordTab({ records, setRecords, sections, onMediaView }: {
   records: RecordItem[]; setRecords: React.Dispatch<React.SetStateAction<RecordItem[]>>; sections: Section[];
+  onMediaView: (src: string, type: 'image' | 'video') => void;
 }) {
   const [recording, setRecording] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -115,6 +213,7 @@ function RecordTab({ records, setRecords, sections }: {
   const [sectionId, setSectionId] = useState(sections[0]?.id || 1);
   const [showOnHome, setShowOnHome] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [editingRecord, setEditingRecord] = useState<RecordItem | null>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -162,6 +261,11 @@ function RecordTab({ records, setRecords, sections }: {
 
   const deleteRecord = (id: number) => setRecords(prev => prev.map(r => r.id === id ? { ...r, isDeleted: true } : r));
   const toggleHome = (id: number) => setRecords(prev => prev.map(r => r.id === id ? { ...r, showOnHome: !r.showOnHome } : r));
+  const saveEdit = () => {
+    if (!editingRecord) return;
+    setRecords(prev => prev.map(r => r.id === editingRecord.id ? editingRecord : r));
+    setEditingRecord(null);
+  };
 
   const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
 
@@ -172,11 +276,8 @@ function RecordTab({ records, setRecords, sections }: {
         <span className="text-sm text-white/40">{activeRecords.length} تعليق</span>
       </div>
 
-      {/* Add record */}
       <div className="rounded-2xl p-5 mb-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.12)' }}>
         <h3 className="text-white font-bold mb-4">إضافة تعليق صوتي</h3>
-
-        {/* Record / Upload */}
         <div className="flex gap-3 mb-4">
           {!recording ? (
             <button onClick={startRecording}
@@ -197,19 +298,16 @@ function RecordTab({ records, setRecords, sections }: {
             <input type="file" accept="audio/*" onChange={handleUploadAudio} className="hidden" />
           </label>
         </div>
-
         {(audioUrl || uploadedAudio) && (
           <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
             <audio src={uploadedAudio?.url || audioUrl!} controls className="w-full" />
             {uploadedAudio && <p className="text-xs text-white/40 mt-1 truncate">{uploadedAudio.name}</p>}
           </div>
         )}
-
         <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="العنوان (اختياري)"
           className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 outline-none mb-3" style={inp} />
         <textarea value={text} onChange={e => setText(e.target.value)} placeholder="نص توضيحي (اختياري)..." rows={2}
           className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 outline-none mb-3 resize-none" style={inp} />
-
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">القسم</label>
@@ -229,13 +327,10 @@ function RecordTab({ records, setRecords, sections }: {
             </button>
           </div>
         </div>
-
-        {/* Optional attachments */}
         <div className="mb-4">
           <p className="text-xs text-white/40 mb-2">مرفقات اختيارية (صور / فيديو / صوت)</p>
-          <AttachmentPicker attachments={attachments} onChange={setAttachments} />
+          <AttachmentPicker attachments={attachments} onChange={setAttachments} onView={onMediaView} />
         </div>
-
         <button onClick={addRecord}
           disabled={!audioUrl && !uploadedAudio}
           className="w-full px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
@@ -244,7 +339,6 @@ function RecordTab({ records, setRecords, sections }: {
         </button>
       </div>
 
-      {/* List */}
       <div className="space-y-3">
         {activeRecords.map(r => (
           <div key={r.id} className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -253,10 +347,19 @@ function RecordTab({ records, setRecords, sections }: {
                 <Mic size={18} className="text-red-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white font-medium truncate">{r.title}</p>
+                {editingRecord?.id === r.id ? (
+                  <input type="text" value={editingRecord.title}
+                    onChange={e => setEditingRecord({ ...editingRecord, title: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded-lg text-white outline-none mb-1" style={{ background: 'rgba(255,255,255,0.08)' }} autoFocus />
+                ) : <p className="text-white font-medium truncate">{r.title}</p>}
                 <p className="text-xs text-white/30">{r.section} {r.showOnHome && <span className="text-green-400 ml-2">· رئيسية</span>}</p>
               </div>
               <div className="flex items-center gap-1">
+                {editingRecord?.id === r.id ? (
+                  <button onClick={saveEdit} className="p-2 rounded-lg hover:bg-white/10"><Check size={15} className="text-green-400" /></button>
+                ) : (
+                  <button onClick={() => setEditingRecord(r)} className="p-2 rounded-lg hover:bg-white/10"><Edit3 size={15} className="text-white/50" /></button>
+                )}
                 <button onClick={() => toggleHome(r.id)} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
                   {r.showOnHome ? <Eye size={15} className="text-green-400" /> : <EyeOff size={15} className="text-white/30" />}
                 </button>
@@ -266,11 +369,16 @@ function RecordTab({ records, setRecords, sections }: {
               </div>
             </div>
             <audio src={r.audioUrl} controls className="w-full mb-2" style={{ height: 36 }} />
-            {r.text && <p className="text-xs text-white/50 mb-2">{r.text}</p>}
+            {editingRecord?.id === r.id ? (
+              <textarea value={editingRecord.text || ''} onChange={e => setEditingRecord({ ...editingRecord, text: e.target.value })}
+                placeholder="النص..." rows={2} className="w-full px-3 py-2 rounded-lg text-sm text-white/70 outline-none resize-none mb-2"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
+            ) : r.text ? <p className="text-xs text-white/50 mb-2">{r.text}</p> : null}
             {r.attachments && r.attachments.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {r.attachments.map((a, i) => (
-                  <div key={i} className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div key={i} className="rounded-lg overflow-hidden cursor-pointer group relative" style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                    onClick={() => (a.type === 'image' || a.type === 'video') && onMediaView(a.url, a.type)}>
                     {a.type === 'image' ? <img src={a.url} alt="" className="w-14 h-14 object-cover" /> :
                       a.type === 'video' ? <div className="w-14 h-14 flex items-center justify-center bg-black/40"><Video size={16} className="text-green-400" /></div> :
                         <div className="w-14 h-14 flex items-center justify-center bg-black/40"><Music size={16} className="text-purple-400" /></div>}
@@ -289,8 +397,9 @@ function RecordTab({ records, setRecords, sections }: {
 }
 
 /* ─── Files Tab ─── */
-function FilesTab({ files, setFiles, sections }: {
+function FilesTab({ files, setFiles, sections, onMediaView }: {
   files: FileItem[]; setFiles: React.Dispatch<React.SetStateAction<FileItem[]>>; sections: Section[];
+  onMediaView: (src: string, type: 'image' | 'video') => void;
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -339,6 +448,15 @@ function FilesTab({ files, setFiles, sections }: {
 
   const fileTypes: FileItem['fileType'][] = ['pdf', 'word', 'excel', 'ppt', 'zip'];
 
+  const openFile = (f: FileItem) => {
+    if (f.fileUrl) {
+      const a = document.createElement('a');
+      a.href = f.fileUrl;
+      a.download = f.fileName;
+      a.click();
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -346,11 +464,8 @@ function FilesTab({ files, setFiles, sections }: {
         <span className="text-sm text-white/40">{activeFiles.length} ملف</span>
       </div>
 
-      {/* Add file */}
       <div className="rounded-2xl p-5 mb-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.12)' }}>
         <h3 className="text-white font-bold mb-4">رفع ملف جديد</h3>
-
-        {/* File type selector */}
         <div className="flex flex-wrap gap-2 mb-4">
           {fileTypes.map(t => (
             <button key={t} onClick={() => { setFileType(t); setUploadedFile(null); }}
@@ -360,8 +475,6 @@ function FilesTab({ files, setFiles, sections }: {
             </button>
           ))}
         </div>
-
-        {/* File upload */}
         {!uploadedFile ? (
           <label className="flex flex-col items-center justify-center gap-2 py-8 rounded-xl cursor-pointer transition-colors hover:bg-white/5 mb-4"
             style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
@@ -376,12 +489,10 @@ function FilesTab({ files, setFiles, sections }: {
             <button onClick={() => setUploadedFile(null)}><X size={16} className="text-white/40" /></button>
           </div>
         )}
-
         <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="العنوان (اختياري)"
           className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 outline-none mb-3" style={inp} />
         <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="وصف / ملاحظات (اختياري)..." rows={2}
           className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 outline-none mb-3 resize-none" style={inp} />
-
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">القسم</label>
@@ -401,12 +512,10 @@ function FilesTab({ files, setFiles, sections }: {
             </button>
           </div>
         </div>
-
         <div className="mb-4">
           <p className="text-xs text-white/40 mb-2">مرفقات إضافية اختيارية</p>
-          <AttachmentPicker attachments={attachments} onChange={setAttachments} />
+          <AttachmentPicker attachments={attachments} onChange={setAttachments} onView={onMediaView} />
         </div>
-
         <button onClick={addFile} disabled={!uploadedFile}
           className="w-full px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
           style={{ background: uploadedFile ? 'white' : 'rgba(255,255,255,0.1)', color: uploadedFile ? '#0a0a1a' : 'rgba(255,255,255,0.3)' }}>
@@ -414,12 +523,12 @@ function FilesTab({ files, setFiles, sections }: {
         </button>
       </div>
 
-      {/* List */}
       <div className="space-y-3">
         {activeFiles.map(f => (
           <div key={f.id} className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="flex items-start gap-3">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 cursor-pointer hover:scale-110 transition-transform"
+                style={{ background: 'rgba(255,255,255,0.05)' }} onClick={() => openFile(f)}>
                 {fileTypeIcon[f.fileType]}
               </div>
               <div className="flex-1 min-w-0">
@@ -431,6 +540,15 @@ function FilesTab({ files, setFiles, sections }: {
                   <textarea value={editingFile.description || ''} onChange={e => setEditingFile({ ...editingFile, description: e.target.value })}
                     placeholder="الوصف..." rows={1} className="w-full px-3 py-2 rounded-lg text-sm text-white/60 outline-none resize-none" style={{ background: 'rgba(255,255,255,0.08)' }} />
                 ) : f.description ? <p className="text-xs text-white/40 truncate">{f.description}</p> : null}
+                {editingFile?.id === f.id ? (
+                  <div className="mt-2">
+                    <label className="text-xs text-white/40 mb-1 block">تغيير القسم</label>
+                    <select value={editingFile.sectionId} onChange={e => setEditingFile({ ...editingFile, sectionId: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                      {sections.filter(s => !s.isDeleted).map(s => <option key={s.id} value={s.id} className="bg-gray-900">{s.title}</option>)}
+                    </select>
+                  </div>
+                ) : null}
                 <p className="text-xs text-white/30 mt-1">{fileTypeLabel[f.fileType]} {f.showOnHome && <span className="text-green-400 ml-1">· رئيسية</span>}</p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
@@ -453,7 +571,8 @@ function FilesTab({ files, setFiles, sections }: {
             {f.attachments && f.attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {f.attachments.map((a, i) => (
-                  <div key={i} className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div key={i} className="rounded-lg overflow-hidden cursor-pointer" style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                    onClick={() => (a.type === 'image' || a.type === 'video') && onMediaView(a.url, a.type)}>
                     {a.type === 'image' ? <img src={a.url} alt="" className="w-12 h-12 object-cover" /> :
                       <div className="w-12 h-12 flex items-center justify-center bg-black/40"><Video size={14} className="text-green-400" /></div>}
                   </div>
@@ -530,10 +649,11 @@ function SectionsTab({ sections, setSections, editingSection, setEditingSection,
 }
 
 /* ─── Content Tab ─── */
-function ContentTab({ content, setContent, editingContent, setEditingContent, sections, downloadFeatureEnabled }: {
+function ContentTab({ content, setContent, editingContent, setEditingContent, sections, downloadFeatureEnabled, onMediaView }: {
   content: ContentItem[]; setContent: React.Dispatch<React.SetStateAction<ContentItem[]>>;
   editingContent: ContentItem | null; setEditingContent: (c: ContentItem | null) => void;
   sections: Section[]; downloadFeatureEnabled: boolean;
+  onMediaView: (src: string, type: 'image' | 'video') => void;
 }) {
   const [addMode, setAddMode] = useState<'media' | 'text'>('media');
   const [title, setTitle] = useState('');
@@ -584,7 +704,6 @@ function ContentTab({ content, setContent, editingContent, setEditingContent, se
         <span className="text-sm text-white/40">{activeContent.length} عنصر</span>
       </div>
 
-      {/* Add */}
       <div className="rounded-2xl p-5 mb-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.12)' }}>
         <div className="flex gap-2 mb-5">
           {(['media', 'text'] as const).map(m => (
@@ -616,9 +735,10 @@ function ContentTab({ content, setContent, editingContent, setEditingContent, se
                 <input type="file" accept={mediaType === 'image' ? 'image/*' : 'video/*'} onChange={handleFileSelect} className="hidden" />
               </label>
             ) : (
-              <div className="rounded-xl overflow-hidden relative" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                {mediaType === 'image' ? <img src={uploadedFile.url} alt="" className="w-full max-h-64 object-contain" style={{ background: '#000' }} /> : <video src={uploadedFile.url} controls className="w-full max-h-64" />}
-                <button onClick={() => setUploadedFile(null)} className="absolute top-2 left-2 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}><X size={16} className="text-white" /></button>
+              <div className="rounded-xl overflow-hidden relative cursor-pointer" style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                onClick={() => uploadedFile && (mediaType === 'image' || mediaType === 'video') && onMediaView(uploadedFile.url, mediaType)}>
+                {mediaType === 'image' ? <img src={uploadedFile.url} alt="" className="w-full max-h-64 object-contain" style={{ background: '#000' }} /> : <video src={uploadedFile.url} controls className="w-full max-h-64" onClick={e => e.stopPropagation()} />}
+                <button onClick={e => { e.stopPropagation(); setUploadedFile(null); }} className="absolute top-2 left-2 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}><X size={16} className="text-white" /></button>
               </div>
             )}
           </div>
@@ -650,7 +770,7 @@ function ContentTab({ content, setContent, editingContent, setEditingContent, se
 
         <div className="mb-4">
           <p className="text-xs text-white/40 mb-2">مرفقات إضافية اختيارية</p>
-          <AttachmentPicker attachments={attachments} onChange={setAttachments} />
+          <AttachmentPicker attachments={attachments} onChange={setAttachments} onView={onMediaView} />
         </div>
 
         <button onClick={addContent} className="w-full px-5 py-3 rounded-xl bg-white text-gray-900 font-bold flex items-center justify-center gap-2 hover:scale-[1.01] transition-transform">
@@ -658,51 +778,72 @@ function ContentTab({ content, setContent, editingContent, setEditingContent, se
         </button>
       </div>
 
-      {/* List */}
       <div className="space-y-3">
         {activeContent.map(item => (
-          <div key={item.id} className="rounded-2xl p-4 flex items-center gap-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-              {item.type === 'image' && item.fileUrl ? <img src={item.fileUrl} alt="" className="w-full h-full object-cover" /> :
-                item.type === 'video' && item.fileUrl ? <Video size={18} className="text-green-400" /> :
-                  <span className="text-lg">{typeLabels[item.type]?.split(' ')[0]}</span>}
-            </div>
-            <div className="flex-1 min-w-0">
-              {editingContent?.id === item.id ? (
-                <input type="text" value={editingContent.title} onChange={e => setEditingContent({ ...editingContent, title: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg text-white outline-none mb-2" style={{ background: 'rgba(255,255,255,0.08)' }} autoFocus />
-              ) : <p className="text-white font-medium truncate">{item.title}</p>}
-              {editingContent?.id === item.id ? (
-                <textarea value={editingContent.contentBody} onChange={e => setEditingContent({ ...editingContent, contentBody: e.target.value })}
-                  placeholder="الوصف..." rows={1} className="w-full px-3 py-2 rounded-lg text-sm text-white/70 outline-none resize-none" style={{ background: 'rgba(255,255,255,0.08)' }} />
-              ) : item.contentBody ? <p className="text-xs text-white/40 mt-0.5 truncate">{item.contentBody}</p> : null}
-              <p className="text-xs text-white/30 mt-0.5 flex items-center gap-2 flex-wrap">
-                <span>{typeLabels[item.type]}</span><span>·</span>
-                <span>{sections.find(s => s.id === item.sectionId)?.title || 'غير محدد'}</span>
-                {item.showOnHome && <span className="px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400">رئيسية</span>}
-              </p>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
-              {editingContent?.id === item.id ? (
-                <button onClick={saveEdit} className="p-2 rounded-lg hover:bg-white/10"><Check size={16} className="text-green-400" /></button>
-              ) : (
-                <button onClick={() => setEditingContent(item)} className="p-2 rounded-lg hover:bg-white/10"><Edit3 size={16} className="text-white/50" /></button>
-              )}
-              <button onClick={() => toggleFeatured(item.id)} className="p-2 rounded-lg hover:bg-white/10" title="مميز">
-                <Star size={16} className={item.isFeatured ? 'text-yellow-400' : 'text-white/30'} />
-              </button>
-              <button onClick={() => toggleHome(item.id)} className="p-2 rounded-lg hover:bg-white/10" title="عرض في الرئيسية">
-                {item.showOnHome ? <Eye size={16} className="text-green-400" /> : <EyeOff size={16} className="text-white/30" />}
-              </button>
-              {downloadFeatureEnabled && (
-                <button onClick={() => toggleDownload(item.id)} className="p-2 rounded-lg hover:bg-white/10" title="تنزيل">
-                  <Download size={16} className={item.allowDownload ? 'text-blue-400' : 'text-white/30'} />
+          <div key={item.id} className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden cursor-pointer hover:scale-110 transition-transform"
+                style={{ background: 'rgba(255,255,255,0.05)' }}
+                onClick={() => item.fileUrl && (item.type === 'image' || item.type === 'video') && onMediaView(item.fileUrl, item.type as 'image' | 'video')}>
+                {item.type === 'image' && item.fileUrl ? <img src={item.fileUrl} alt="" className="w-full h-full object-cover" /> :
+                  item.type === 'video' && item.fileUrl ? <Video size={18} className="text-green-400" /> :
+                    <span className="text-lg">{typeLabels[item.type]?.split(' ')[0]}</span>}
+              </div>
+              <div className="flex-1 min-w-0">
+                {editingContent?.id === item.id ? (
+                  <input type="text" value={editingContent.title} onChange={e => setEditingContent({ ...editingContent, title: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg text-white outline-none mb-1" style={{ background: 'rgba(255,255,255,0.08)' }} autoFocus />
+                ) : <p className="text-white font-medium truncate">{item.title}</p>}
+                {editingContent?.id === item.id ? (
+                  <>
+                    <textarea value={editingContent.contentBody} onChange={e => setEditingContent({ ...editingContent, contentBody: e.target.value })}
+                      placeholder="الوصف..." rows={1} className="w-full px-3 py-2 rounded-lg text-sm text-white/70 outline-none resize-none mb-1" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                    <select value={editingContent.sectionId} onChange={e => setEditingContent({ ...editingContent, sectionId: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                      {sections.filter(s => !s.isDeleted).map(s => <option key={s.id} value={s.id} className="bg-gray-900">{s.title}</option>)}
+                    </select>
+                  </>
+                ) : item.contentBody ? <p className="text-xs text-white/40 mt-0.5 truncate">{item.contentBody}</p> : null}
+                <p className="text-xs text-white/30 mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span>{typeLabels[item.type]}</span><span>·</span>
+                  <span>{sections.find(s => s.id === item.sectionId)?.title || 'غير محدد'}</span>
+                  {item.showOnHome && <span className="px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400">رئيسية</span>}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
+                {editingContent?.id === item.id ? (
+                  <button onClick={saveEdit} className="p-2 rounded-lg hover:bg-white/10"><Check size={16} className="text-green-400" /></button>
+                ) : (
+                  <button onClick={() => setEditingContent(item)} className="p-2 rounded-lg hover:bg-white/10"><Edit3 size={16} className="text-white/50" /></button>
+                )}
+                <button onClick={() => toggleFeatured(item.id)} className="p-2 rounded-lg hover:bg-white/10" title="مميز">
+                  <Star size={16} className={item.isFeatured ? 'text-yellow-400' : 'text-white/30'} />
                 </button>
-              )}
-              <button onClick={() => deleteContent(item.id)} className="p-2 rounded-lg hover:bg-white/10">
-                <Trash2 size={16} className="text-red-400" />
-              </button>
+                <button onClick={() => toggleHome(item.id)} className="p-2 rounded-lg hover:bg-white/10" title="عرض في الرئيسية">
+                  {item.showOnHome ? <Eye size={16} className="text-green-400" /> : <EyeOff size={16} className="text-white/30" />}
+                </button>
+                {downloadFeatureEnabled && (
+                  <button onClick={() => toggleDownload(item.id)} className="p-2 rounded-lg hover:bg-white/10" title="تنزيل">
+                    <Download size={16} className={item.allowDownload ? 'text-blue-400' : 'text-white/30'} />
+                  </button>
+                )}
+                <button onClick={() => deleteContent(item.id)} className="p-2 rounded-lg hover:bg-white/10">
+                  <Trash2 size={16} className="text-red-400" />
+                </button>
+              </div>
             </div>
+            {item.attachments && item.attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {item.attachments.map((a, i) => (
+                  <div key={i} className="rounded-lg overflow-hidden cursor-pointer" style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                    onClick={() => (a.type === 'image' || a.type === 'video') && onMediaView(a.url, a.type)}>
+                    {a.type === 'image' ? <img src={a.url} alt="" className="w-14 h-14 object-cover" /> :
+                      a.type === 'video' ? <div className="w-14 h-14 flex items-center justify-center bg-black/40"><Video size={16} className="text-green-400" /></div> :
+                        <div className="w-14 h-14 flex items-center justify-center bg-black/40"><Music size={16} className="text-purple-400" /></div>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -874,6 +1015,9 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
       </div>
       <div className="rounded-2xl p-6 mb-6" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <h3 className="text-lg font-bold text-white mb-4">إدارة التخزين</h3>
+        <div className="mb-3 px-4 py-3 rounded-xl text-xs text-white/50" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          البيانات محفوظة تلقائياً في الجهاز. كل المحتوى الذي تضيفه يُحفظ ويظهر للمستخدمين فور إضافته.
+        </div>
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.02)' }}>
             <p className="text-xs text-white/40">المستخدم</p><p className="text-xl font-bold text-white mt-1">{storageInfo.used}</p>
@@ -938,13 +1082,19 @@ export default function AdminDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
 
+  // Media viewer
+  const [mediaViewer, setMediaViewer] = useState<{ src: string; type: 'image' | 'video' } | null>(null);
+
+  // Load persisted data
+  const [data] = useState<AdminData>(() => loadData());
+
   // Settings
-  const [appName, setAppName] = useState('EduVerse');
-  const [themeColors, setThemeColors] = useState(['#F4845F', '#6BBF7A', '#E882B4', '#6EB5FF']);
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [rgbLighting, setRgbLighting] = useState(true);
-  const [notifications, setNotifications] = useState(true);
-  const [downloadFeatureEnabled, setDownloadFeatureEnabled] = useState(false);
+  const [appName, setAppName] = useState(data.appName);
+  const [themeColors, setThemeColors] = useState(data.themeColors);
+  const [maintenanceMode, setMaintenanceMode] = useState(data.maintenanceMode);
+  const [rgbLighting, setRgbLighting] = useState(data.rgbLighting);
+  const [notifications, setNotifications] = useState(data.notifications);
+  const [downloadFeatureEnabled, setDownloadFeatureEnabled] = useState(data.downloadFeatureEnabled);
   const [storageInfo, setStorageInfo] = useState<{ used: string; total: string; percent: number }>({ used: '0 MB', total: '—', percent: 0 });
   const [cacheCleared, setCacheCleared] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -955,25 +1105,23 @@ export default function AdminDashboard() {
   const [passwordError, setPasswordError] = useState('');
 
   // Data
-  const [sections, setSections] = useState<Section[]>([
-    { id: 1, title: 'المستوى الأول — رياضيات', isVisible: true, isDeleted: false, displayOrder: 1 },
-    { id: 2, title: 'المستوى الثاني — علوم', isVisible: true, isDeleted: false, displayOrder: 2 },
-    { id: 3, title: 'المستوى الأول — لغة عربية', isVisible: true, isDeleted: false, displayOrder: 3 },
-    { id: 4, title: 'المستوى الثاني — فنون', isVisible: true, isDeleted: false, displayOrder: 4 },
-  ]);
+  const [sections, setSections] = useState<Section[]>(data.sections);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [newSectionTitle, setNewSectionTitle] = useState('');
-  const [contentItems, setContentItems] = useState<ContentItem[]>([
-    { id: 1, sectionId: 1, title: 'أساسيات الجبر', type: 'video', contentBody: 'شرح مبسط', fileUrl: '', isFeatured: true, showOnHome: true, allowDownload: false, isDeleted: false },
-    { id: 2, sectionId: 2, title: 'التجارب العلمية', type: 'pdf', contentBody: '', fileUrl: '', isFeatured: true, showOnHome: true, allowDownload: false, isDeleted: false },
-  ]);
+  const [contentItems, setContentItems] = useState<ContentItem[]>(data.contentItems);
   const [editingContent, setEditingContent] = useState<ContentItem | null>(null);
-  const [records, setRecords] = useState<RecordItem[]>([]);
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [comments, setComments] = useState<Comment[]>([
-    { id: 1, contentId: 1, userId: 'user1', commentText: 'شرح رائع!', replyText: 'شكراً لك', isVisible: true, createdAt: '2025-01-15' },
-    { id: 2, contentId: 2, userId: 'user2', commentText: 'هل يوجد ملف PDF؟', replyText: null, isVisible: true, createdAt: '2025-01-16' },
-  ]);
+  const [records, setRecords] = useState<RecordItem[]>(data.records);
+  const [files, setFiles] = useState<FileItem[]>(data.files);
+  const [comments, setComments] = useState<Comment[]>(data.comments);
+
+  // Auto-save whenever data changes
+  useEffect(() => {
+    const adminData: AdminData = {
+      appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled,
+      sections, contentItems, records, files, comments,
+    };
+    saveData(adminData);
+  }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments]);
 
   useEffect(() => {
     if (navigator.storage?.estimate) {
@@ -987,7 +1135,16 @@ export default function AdminDashboard() {
   const canSavePassword = newPassword.length > 0 && newPassword === confirmPassword && authCode === REQUIRED_AUTH_CODE;
   const handleSavePassword = () => { localStorage.setItem('admin_password', newPassword); setPasswordSuccess(true); setNewPassword(''); setConfirmPassword(''); setAuthCode(''); setTimeout(() => setPasswordSuccess(false), 4000); };
 
-  const handleLogin = (e: React.FormEvent) => { e.preventDefault(); if (password === currentPassword) { setAccessed(true); setError(''); } else { setError('كلمة المرور غير صحيحة'); setPassword(''); } };
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pw = localStorage.getItem('admin_password') || DEFAULT_PASSWORD;
+    if (password === pw) { setAccessed(true); setError(''); }
+    else { setError('كلمة المرور غير صحيحة'); setPassword(''); }
+  };
+
+  const onMediaView = useCallback((src: string, type: 'image' | 'video') => {
+    setMediaViewer({ src, type });
+  }, []);
 
   if (!accessed) {
     return (
@@ -1037,6 +1194,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen" style={{ background: '#0a0a1a', fontFamily: "'Cairo', sans-serif" }} dir="rtl">
+      {/* Media Viewer */}
+      {mediaViewer && <MediaViewer src={mediaViewer.src} type={mediaViewer.type} onClose={() => setMediaViewer(null)} />}
+
       {/* Header */}
       <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3" style={{ background: 'rgba(10,10,26,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-3">
@@ -1103,9 +1263,9 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'sections' && <SectionsTab sections={sections} setSections={setSections} editingSection={editingSection} setEditingSection={setEditingSection} newSectionTitle={newSectionTitle} setNewSectionTitle={setNewSectionTitle} />}
-        {activeTab === 'content' && <ContentTab content={contentItems} setContent={setContentItems} editingContent={editingContent} setEditingContent={setEditingContent} sections={sections} downloadFeatureEnabled={downloadFeatureEnabled} />}
-        {activeTab === 'record' && <RecordTab records={records} setRecords={setRecords} sections={sections} />}
-        {activeTab === 'files' && <FilesTab files={files} setFiles={setFiles} sections={sections} />}
+        {activeTab === 'content' && <ContentTab content={contentItems} setContent={setContentItems} editingContent={editingContent} setEditingContent={setEditingContent} sections={sections} downloadFeatureEnabled={downloadFeatureEnabled} onMediaView={onMediaView} />}
+        {activeTab === 'record' && <RecordTab records={records} setRecords={setRecords} sections={sections} onMediaView={onMediaView} />}
+        {activeTab === 'files' && <FilesTab files={files} setFiles={setFiles} sections={sections} onMediaView={onMediaView} />}
         {activeTab === 'comments' && <CommentsTab comments={comments} setComments={setComments} />}
         {activeTab === 'analytics' && <AnalyticsTab comments={comments} content={contentItems} records={records} files={files} />}
         {activeTab === 'trash' && <TrashTab deletedSections={deletedSections} deletedContent={deletedContent} deletedRecords={deletedRecords} deletedFiles={deletedFiles} setSections={setSections} setContent={setContentItems} setRecords={setRecords} setFiles={setFiles} />}
