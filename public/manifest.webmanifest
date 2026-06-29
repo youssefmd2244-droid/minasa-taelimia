@@ -1,12 +1,26 @@
 {
-  "name": "EduVerse",
+  "name": "EduVerse — منصة تعليمية",
   "short_name": "EduVerse",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#050510",
   "theme_color": "#050510",
-  "description": "منصة EduVerse التعليمية",
+  "description": "منصة EduVerse التعليمية الشاملة",
   "lang": "ar",
   "dir": "rtl",
-  "icons": []
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
