@@ -8,7 +8,6 @@ import {
   TrendingUp,
   CheckCircle,
 } from 'lucide-react';
-import KnowledgeFieldShader from '../shaders/KnowledgeFieldShader';
 
 // ========== SECTION 1: Academy Hero ==========
 function AcademyHero() {
@@ -26,90 +25,18 @@ function AcademyHero() {
       }}
     >
       {/*
-        خلفية WebGL حقيقية تحل محل التدرّج الثابت السابق — تنفيذ فعلي
-        لما كان وصفاً نصياً فقط (Swirl + ChromaFlow + FilmGrain من
-        برومبت Axion Studio)، بهوية "حقل معرفة" تفاعلي مع الماوس.
+        خلفية متدرجة بـ CSS فقط (بدون WebGL) — أداء أعلى بكتير على الموبايل،
+        بنفس الإحساس البصري (توهج برتقالي متحرك ببطء).
       */}
-      <KnowledgeFieldShader
-        colorBase={[0.04, 0.06, 0.12]}
-        colorAccent={[0.95, 0.4, 0.13]}
+      <div
+        style={{
+          position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
+          background: 'radial-gradient(circle at 30% 20%, rgba(249,115,22,0.12) 0%, transparent 55%), radial-gradient(circle at 75% 70%, rgba(110,181,255,0.08) 0%, transparent 50%)',
+        }}
       />
 
-      {/* Navbar */}
-      <nav
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '20px 40px',
-          position: 'relative',
-          zIndex: 10,
-        }}
-      >
-        {/* Logo */}
-        <div
-          style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #ff6b35, #f97316)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: "'Anton', sans-serif",
-            fontSize: '18px',
-            color: 'white',
-            fontWeight: 400,
-            boxShadow: '0 8px 24px rgba(249,115,22,0.4)',
-          }}
-        >
-          ED
-        </div>
-
-        {/* Nav links */}
-        <div
-          className="liquid-glass"
-          style={{
-            display: 'flex',
-            gap: '28px',
-            padding: '10px 24px',
-            borderRadius: '999px',
-          }}
-        >
-          {['Courses', 'Curriculum', 'Blog', 'Contact'].map((link) => (
-            <a
-              key={link}
-              href={`#${link.toLowerCase()}`}
-              style={{
-                fontSize: '13px',
-                color: 'rgba(255,255,255,0.7)',
-                textDecoration: 'none',
-                transition: 'color 200ms',
-              }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLAnchorElement).style.color = 'white')
-              }
-              onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLAnchorElement).style.color =
-                  'rgba(255,255,255,0.7)')
-              }
-            >
-              {link}
-            </a>
-          ))}
-        </div>
-
-        {/* Right side text */}
-        <div
-          style={{
-            fontSize: '12px',
-            color: 'rgba(255,255,255,0.5)',
-            letterSpacing: '0.05em',
-          }}
-        >
-          Enrolling for Spring 2026 cohort
-        </div>
-      </nav>
+      {/* Spacer to clear the fixed global nav */}
+      <div style={{ height: '24px' }} />
 
       {/* Hero content */}
       <div
