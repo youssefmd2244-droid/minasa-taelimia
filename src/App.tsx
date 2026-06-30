@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Settings } from 'lucide-react';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
@@ -10,258 +10,229 @@ import HeroVex from './components/landing/HeroVex';
 import AcademyShowcase from './components/landing/AcademyShowcase';
 import AdminDashboard from './components/admin/AdminDashboard';
 import DeveloperCredit from './components/landing/DeveloperCredit';
+import StudentComments from './components/landing/StudentComments';
+import { useScrollReveal } from './hooks/useScrollReveal';
+
+// ===== Password gate inline =====
+const ADMIN_PASS = 'admin123';
+
+function PasswordGate({ onEnter }: { onEnter: () => void }) {
+  const { t, dir } = useLanguage();
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState(false);
+  const submit = () => {
+    if (pw === ADMIN_PASS) { onEnter(); }
+    else { setErr(true); setTimeout(() => setErr(false), 1500); }
+  };
+  return (
+    <div dir={dir} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(5,5,16,0.95)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} style={{ width: '360px', padding: '40px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', textAlign: 'center' }}>
+        <div style={{ fontSize: '32px', marginBottom: '16px' }}>🔐</div>
+        <h2 style={{ color: 'white', fontWeight: 700, marginBottom: '6px' }}>{t('admin_title')}</h2>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', marginBottom: '24px' }}>{t('admin_subtitle')}</p>
+        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder="••••••••"
+          style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: err ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.07)', border: `1px solid ${err ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.15)'}`, color: 'white', fontSize: '16px', outline: 'none', textAlign: 'center', marginBottom: '12px', transition: 'border 200ms' }} />
+        {err && <p style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px' }}>{t('admin_wrong')}</p>}
+        <button onClick={submit} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#f97316', border: 'none', color: 'white', fontWeight: 700, fontSize: '15px', cursor: 'pointer' }}>{t('admin_login')}</button>
+      </motion.div>
+    </div>
+  );
+}
 
 function AppContent() {
   const { t, dir } = useLanguage();
+  // Show intro immediately — no delay
   const [showIntro, setShowIntro] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showPasswordGate, setShowPasswordGate] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
+  const [adminPassword, setAdminPassword] = useState(ADMIN_PASS);
+  const gearRef = useRef<HTMLButtonElement>(null);
+
+  // Scroll reveal
+  useScrollReveal();
 
   // Hash routing for /admin
   useEffect(() => {
-    const checkHash = () => setShowAdmin(window.location.hash === '#/admin');
+    const checkHash = () => {
+      if (window.location.hash === '#/admin') setShowPasswordGate(true);
+    };
     checkHash();
     window.addEventListener('hashchange', checkHash);
     return () => window.removeEventListener('hashchange', checkHash);
   }, []);
 
-  // Keyboard shortcut: Ctrl+Shift+A → toggle admin
+  // Keyboard shortcut: Ctrl+Shift+A
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
         e.preventDefault();
-        setShowAdmin((prev) => {
-          const next = !prev;
-          if (next) window.location.hash = '/admin';
-          else window.location.hash = '';
-          return next;
-        });
+        setShowPasswordGate(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Scroll tracking for nav bar + section dots
+  // Scroll tracking
   useEffect(() => {
     const handleScroll = () => {
       setNavScrolled(window.scrollY > 80);
-      const section1 = document.querySelector('.snap-section');
-      if (section1) {
-        const rect1 = section1.getBoundingClientRect();
-        if (rect1.bottom < window.innerHeight / 2) {
-          const coursesSection = document.getElementById('courses');
-          if (coursesSection) {
-            const rect2 = coursesSection.getBoundingClientRect();
-            if (rect2.top < window.innerHeight / 2) setActiveSection(3);
-            else setActiveSection(1);
-          } else setActiveSection(1);
-        } else setActiveSection(0);
-      }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Request persistent storage
+  // Persistent storage
   useEffect(() => {
-    if (navigator.storage?.persist) {
-      navigator.storage.persist().then(() => {}).catch(() => {});
-    }
+    if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   }, []);
+
+  // Show admin after password
+  const enterAdmin = () => {
+    setShowPasswordGate(false);
+    setShowAdmin(true);
+    window.location.hash = '/admin';
+  };
+
+  const exitAdmin = () => {
+    setShowAdmin(false);
+    setShowPasswordGate(false);
+    window.location.hash = '';
+  };
 
   if (showAdmin) {
     return (
       <div dir={dir}>
-        <button
-          onClick={() => { setShowAdmin(false); window.location.hash = ''; }}
-          className="fixed top-4 left-4 z-[100] px-4 py-2 rounded-full liquid-glass text-white text-sm font-medium hover:bg-white/15 transition-colors flex items-center gap-2"
-        >
-          <span className="text-xs">←</span>
-          {dir === 'rtl' ? 'العودة للموقع' : 'Back to Site'}
+        <button onClick={exitAdmin} style={{ position: 'fixed', top: '16px', insetInlineStart: '16px', zIndex: 100, padding: '8px 20px', borderRadius: '999px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'white', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          ← {t('admin_exit')}
         </button>
-        <AdminDashboard />
+        <AdminDashboard currentPassword={adminPassword} onPasswordChange={setAdminPassword} />
       </div>
     );
   }
 
   return (
     <div className="relative" dir={dir}>
-      {/* Intro Splash */}
+      {/* Password gate */}
+      <AnimatePresence>
+        {showPasswordGate && <PasswordGate onEnter={enterAdmin} />}
+      </AnimatePresence>
+
+      {/* Intro Splash — renders immediately */}
       <AnimatePresence>
         {showIntro && <IntroSplash onFinish={() => setShowIntro(false)} />}
       </AnimatePresence>
 
       {/* Top Navigation Bar */}
-      <nav
-        className={`fixed top-0 left-0 right-0 z-[60] transition-all duration-300 ${
-          navScrolled ? 'py-2' : 'py-4'
-        }`}
-        style={{
-          background: navScrolled ? 'rgba(10,10,15,0.9)' : 'transparent',
-          backdropFilter: navScrolled ? 'blur(20px)' : 'none',
-        }}
-      >
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <motion.span
-              className="text-white font-bold text-lg tracking-wider"
-              style={{ fontFamily: "'Anton', sans-serif" }}
-              animate={{
-                textShadow: [
-                  '0 0 10px rgba(255,0,100,0.3), 0 0 20px rgba(0,255,100,0.15)',
-                  '0 0 10px rgba(0,255,100,0.3), 0 0 20px rgba(0,100,255,0.15)',
-                  '0 0 10px rgba(0,100,255,0.3), 0 0 20px rgba(255,0,100,0.15)',
-                  '0 0 10px rgba(255,0,100,0.3), 0 0 20px rgba(0,255,100,0.15)',
-                ],
-              }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-            >
+      <nav style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
+        padding: navScrolled ? '10px 0' : '18px 0',
+        background: navScrolled ? 'rgba(10,10,15,0.92)' : 'transparent',
+        backdropFilter: navScrolled ? 'blur(20px)' : 'none',
+        transition: 'all 300ms ease',
+      }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <motion.span style={{ fontFamily: "'Anton', sans-serif", fontSize: '20px', color: 'white', fontWeight: 900 }}
+              animate={{ textShadow: ['0 0 10px rgba(255,0,100,0.3)', '0 0 10px rgba(0,255,100,0.3)', '0 0 10px rgba(0,100,255,0.3)', '0 0 10px rgba(255,0,100,0.3)'] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}>
               EDUVERSE
             </motion.span>
-            <div className="hidden md:flex items-center gap-6">
+            <div style={{ display: 'none' }} className="md-flex">
               {[t('nav_home'), t('nav_courses'), t('nav_instructors'), t('nav_blog')].map((link) => (
-                <a key={link} href="#" className="text-xs text-white/50 hover:text-white transition-colors">
+                <a key={link} href="#" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', textDecoration: 'none', marginInlineEnd: '20px', transition: 'color 200ms' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'white')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')}>
                   {link}
                 </a>
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <LanguageSwitcher />
-            <a href="#start" className="px-4 py-2 rounded-full bg-white/10 text-white text-xs font-medium hover:bg-white/20 transition-colors border border-white/10">
+            <a href="#start" style={{ padding: '8px 20px', borderRadius: '999px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', fontWeight: 600, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.12)', transition: 'background 200ms' }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.18)')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.1)')}>
               {t('nav_start')}
             </a>
           </div>
         </div>
       </nav>
 
-      {/* Section Dot Navigation */}
-      <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
+      {/* Section dot nav */}
+      <div style={{ position: 'fixed', insetInlineStart: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 50, display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {[0, 1, 2, 3].map((i) => (
-          <a
-            key={i}
-            href={i === 0 ? '#' : i === 3 ? '#courses' : '#'}
-            className="block w-2 h-2 rounded-full transition-all duration-300"
-            style={{
-              background: activeSection === i ? 'white' : 'rgba(255,255,255,0.2)',
-              transform: activeSection === i ? 'scale(1.5)' : 'scale(1)',
-            }}
-          />
+          <div key={i} onClick={() => setActiveSection(i)} style={{ width: '8px', height: activeSection === i ? '24px' : '8px', borderRadius: '4px', background: activeSection === i ? 'white' : 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 300ms ease' }} />
         ))}
       </div>
 
-      {/* Visible Settings Gear — opens admin password gate */}
-      <motion.button
-        onClick={() => setShowAdmin(true)}
-        className="fixed bottom-6 left-6 z-50 w-12 h-12 rounded-full liquid-glass flex items-center justify-center text-white/70 hover:text-white transition-all duration-200 hover:scale-110"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        title={dir === 'rtl' ? 'لوحة التحكم' : 'Admin'}
-        aria-label="Admin settings"
-      >
-        <Settings size={20} />
-      </motion.button>
+      {/* ── Settings gear — FIXED in bottom nav bar, spinning ── */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 70,
+        padding: '10px 24px',
+        paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
+        background: 'rgba(5,5,16,0.85)',
+        backdropFilter: 'blur(20px)',
+        borderTop: '1px solid rgba(255,255,255,0.07)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <button
+          ref={gearRef}
+          onClick={() => setShowPasswordGate(true)}
+          title={t('admin_title')}
+          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '10px 24px', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', transition: 'background 200ms' }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)')}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)')}
+        >
+          <Settings size={18} className="gear-spin" />
+          {t('admin_settings')}
+        </button>
+      </div>
 
       {/* ─── Landing Sections ─── */}
-      <HeroCarousel />
-      <HeroVideo />
-      <HeroVex />
-      <AcademyShowcase />
+      <div className="bottom-nav-safe">
+        <HeroCarousel />
+        <HeroVideo />
+        <HeroVex />
+        <AcademyShowcase />
+        <StudentComments />
+        <DeveloperCredit />
 
-      {/* ─── Developer Credit + Global Presence ─── */}
-      <DeveloperCredit />
-
-      {/* ─── Footer ─── */}
-      <footer className="relative w-full py-16 px-4 sm:px-8" style={{ background: '#050510' }}>
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-white text-xl font-bold" style={{ fontFamily: "'Anton', sans-serif" }}>EDUVERSE</span>
+        {/* Footer */}
+        <footer style={{ background: '#050510', padding: '60px 20px 40px' }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '32px', marginBottom: '48px' }}>
+              <div>
+                <span style={{ fontFamily: "'Anton', sans-serif", fontSize: '22px', color: 'white' }}>EDUVERSE</span>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: '12px', lineHeight: 1.7 }}>{t('footer_desc')}</p>
               </div>
-              <p className="text-sm text-white/40 leading-relaxed">{t('footer_desc')}</p>
-            </div>
-            <div>
-              <h4 className="text-white font-bold mb-4">{t('footer_quick')}</h4>
-              <ul className="space-y-2">
+              <div>
+                <h4 style={{ color: 'white', fontWeight: 700, marginBottom: '16px' }}>{t('footer_quick')}</h4>
                 {[t('footer_link_about'), t('footer_link_how'), t('footer_link_academic'), t('footer_link_blog'), t('footer_link_privacy'), t('footer_link_terms')].map((link) => (
-                  <li key={link}>
-                    <a href="#" className="text-sm text-white/40 hover:text-white/70 transition-colors">{link}</a>
-                  </li>
+                  <a key={link} href="#" style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '13px', textDecoration: 'none', marginBottom: '8px' }}>{link}</a>
                 ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-white font-bold mb-4">{t('footer_subjects')}</h4>
-              <ul className="space-y-2">
-                {[t('footer_subject_math'), t('footer_subject_science'), t('footer_subject_arabic'), t('footer_subject_design'), t('footer_subject_physics'), t('footer_subject_cs')].map((link) => (
-                  <li key={link}>
-                    <a href="#" className="text-sm text-white/40 hover:text-white/70 transition-colors">{link}</a>
-                  </li>
+              </div>
+              <div>
+                <h4 style={{ color: 'white', fontWeight: 700, marginBottom: '16px' }}>{t('footer_subjects')}</h4>
+                {[t('footer_subject_math'), t('footer_subject_science'), t('footer_subject_arabic'), t('footer_subject_design'), t('footer_subject_physics'), t('footer_subject_cs')].map((s) => (
+                  <a key={s} href="#" style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '13px', textDecoration: 'none', marginBottom: '8px' }}>{s}</a>
                 ))}
-              </ul>
+              </div>
+              <div>
+                <h4 style={{ color: 'white', fontWeight: 700, marginBottom: '16px' }}>{t('footer_contact')}</h4>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', lineHeight: 1.9 }}>info@eduverse.com<br />+20 100 000 0000</p>
+              </div>
             </div>
-            <div>
-              <h4 className="text-white font-bold mb-4">{t('footer_contact')}</h4>
-              <ul className="space-y-2 text-sm text-white/40">
-                <li>info@eduverse.com</li>
-                <li>+966 50 000 0000</li>
-                <li>{dir === 'rtl' ? 'الرياض، المملكة العربية السعودية' : 'Riyadh, Saudi Arabia'}</li>
-              </ul>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px' }}>{t('footer_copy')}</p>
+              <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: '12px' }}>{t('footer_made')}</p>
             </div>
           </div>
-
-          {/* CTA Banner with RGB pulse */}
-          <motion.div
-            className="rounded-2xl p-8 sm:p-10 text-center mb-12"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-            animate={{
-              boxShadow: [
-                '0 0 0px rgba(255,0,100,0)',
-                '0 0 30px rgba(255,0,100,0.08), 0 0 60px rgba(0,255,100,0.04)',
-                '0 0 30px rgba(0,255,100,0.08), 0 0 60px rgba(0,100,255,0.04)',
-                '0 0 30px rgba(0,100,255,0.08), 0 0 60px rgba(255,0,100,0.04)',
-                '0 0 0px rgba(255,0,100,0)',
-              ],
-            }}
-            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">{t('footer_cta_title')}</h3>
-            <p className="text-sm text-white/40 mb-6 max-w-lg mx-auto">{t('footer_cta_desc')}</p>
-            <motion.a
-              href="#start"
-              className="inline-block pill-btn bg-white text-navy-900 font-bold"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.97 }}
-              animate={{
-                boxShadow: [
-                  '0 0 0px rgba(255,255,255,0)',
-                  '0 0 15px rgba(255,0,100,0.2), 0 0 30px rgba(0,255,100,0.1)',
-                  '0 0 15px rgba(0,100,255,0.2), 0 0 30px rgba(255,0,100,0.1)',
-                  '0 0 0px rgba(255,255,255,0)',
-                ],
-              }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              {t('footer_cta_btn')}
-            </motion.a>
-          </motion.div>
-
-          <div
-            className="border-t pt-8 flex flex-col sm:flex-row items-center justify-between gap-4"
-            style={{ borderColor: 'rgba(255,255,255,0.06)' }}
-          >
-            <p className="text-xs text-white/30">{t('footer_copy')}</p>
-            <p className="text-xs text-white/20 flex items-center gap-1">
-              {t('footer_made')}
-              <span className="text-[8px] text-white/8 px-1 select-none">·</span>
-              <a href="#/admin" className="text-[8px] text-white/5 hover:text-white/20 transition-colors select-none cursor-default" title="">•</a>
-            </p>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }
