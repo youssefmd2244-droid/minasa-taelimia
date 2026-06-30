@@ -28,7 +28,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('eduverse_lang', lang);
+    // Defer localStorage write so the UI updates immediately without blocking
+    setTimeout(() => {
+      try { localStorage.setItem('eduverse_lang', lang); } catch { /* ignore */ }
+    }, 0);
   }, []);
 
   const t = useCallback((key: TranslationKey): string => {
