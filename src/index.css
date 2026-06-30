@@ -9,31 +9,47 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-body { background: #0a0a0a; color: #ffffff; overflow-x: hidden; font-family: 'Inter', 'Cairo', sans-serif; }
+body {
+  background: #0a0a0a;
+  color: #ffffff;
+  overflow-x: hidden;
+  font-family: 'Inter', 'Cairo', sans-serif;
+  /* Mobile safe areas */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ===== Mobile App Layout ===== */
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Bottom nav safe area */
+.bottom-nav-safe {
+  padding-bottom: calc(60px + env(safe-area-inset-bottom));
+}
 
 /* ===== Arabic / RTL typography fix ===== */
-/* Use a proper Arabic-first font stack when in RTL */
 [dir="rtl"] body,
 [dir="rtl"] {
   font-family: 'Cairo', 'Tajawal', 'Inter', sans-serif;
 }
-/* Never spread Arabic letters — force normal spacing everywhere under RTL.
-   This overrides inline styles (letterSpacing) AND Tailwind tracking-* classes. */
 [dir="rtl"] * {
   letter-spacing: normal !important;
   word-spacing: normal !important;
 }
-/* Anton/Inter do not render Arabic correctly — force Cairo for any element
-   that tried to use them when the text is RTL */
 [dir="rtl"] [style*="Anton"],
 [dir="rtl"] [style*="Inter"],
 [dir="rtl"] [style*="font-display"] {
   font-family: 'Cairo', sans-serif !important;
 }
 
+/* ===== Glass effects ===== */
 .liquid-glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
 .liquid-glass-strong { background: rgba(255,255,255,0.1); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid rgba(255,255,255,0.15); }
 
+/* ===== Animations ===== */
 @keyframes fadeRise { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
 .fade-rise { animation: fadeRise 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; opacity: 0; }
 .fade-rise-delay-1 { animation-delay: 0.15s; }
@@ -47,8 +63,32 @@ body { background: #0a0a0a; color: #ffffff; overflow-x: hidden; font-family: 'In
   66% { box-shadow: 0 0 20px rgba(0,100,255,0.4), 0 0 40px rgba(255,0,100,0.2), 0 0 60px rgba(0,255,100,0.15); }
 }
 .rgb-pulse { animation: rgbPulse 3s ease-in-out infinite; }
+
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .spin-slow { animation: spin 8s linear infinite; }
+
+/* ===== Scroll reveal ===== */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-32px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal-left.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
 
 .grain-overlay {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
@@ -58,6 +98,22 @@ body { background: #0a0a0a; color: #ffffff; overflow-x: hidden; font-family: 'In
 .pill-btn { padding: 12px 28px; border-radius: 9999px; font-weight: 600; font-size: 14px; transition: all 200ms ease; font-family: 'Cairo', sans-serif; }
 .hover-scale { transition: transform 150ms ease, background-color 150ms ease; }
 .hover-scale:hover { transform: scale(1.08); }
+
+/* Admin card */
+.admin-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  transition: border-color 200ms ease;
+}
+.admin-card:hover {
+  border-color: rgba(255,255,255,0.14);
+}
+
+/* Settings gear spin */
+@keyframes gearSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.gear-spin { animation: gearSpin 6s linear infinite; }
+.gear-spin:hover { animation-duration: 1s; }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #050510; }
