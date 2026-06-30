@@ -5,8 +5,6 @@ import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
 import HeroCarousel from './components/landing/HeroCarousel';
-import HeroVideo from './components/landing/HeroVideo';
-import HeroVex from './components/landing/HeroVex';
 import AcademyShowcase from './components/landing/AcademyShowcase';
 import AdminDashboard from './components/admin/AdminDashboard';
 import DeveloperCredit from './components/landing/DeveloperCredit';
@@ -47,7 +45,6 @@ function AppContent() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showPasswordGate, setShowPasswordGate] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
-  const [activeSection, setActiveSection] = useState(0);
   const [adminPassword, setAdminPassword] = useState(ADMIN_PASS);
   const gearRef = useRef<HTMLButtonElement>(null);
 
@@ -136,11 +133,9 @@ function AppContent() {
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <motion.span style={{ fontFamily: "'Anton', sans-serif", fontSize: '20px', color: 'white', fontWeight: 900 }}
-              animate={{ textShadow: ['0 0 10px rgba(255,0,100,0.3)', '0 0 10px rgba(0,255,100,0.3)', '0 0 10px rgba(0,100,255,0.3)', '0 0 10px rgba(255,0,100,0.3)'] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}>
+            <span style={{ fontFamily: "'Anton', sans-serif", fontSize: '20px', color: 'white', fontWeight: 900, letterSpacing: '0.02em' }}>
               EDUVERSE
-            </motion.span>
+            </span>
             <div style={{ display: 'none' }} className="md-flex">
               {[t('nav_home'), t('nav_courses'), t('nav_instructors'), t('nav_blog')].map((link) => (
                 <a key={link} href="#" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', textDecoration: 'none', marginInlineEnd: '20px', transition: 'color 200ms' }}
@@ -151,7 +146,15 @@ function AppContent() {
               ))}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              ref={gearRef}
+              onClick={() => setShowPasswordGate(true)}
+              title={t('admin_settings')}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <Settings size={16} className="gear-spin" />
+            </button>
             <LanguageSwitcher />
             <a href="#start" style={{ padding: '8px 20px', borderRadius: '999px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', fontWeight: 600, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.12)', transition: 'background 200ms' }}
               onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.18)')}
@@ -162,41 +165,9 @@ function AppContent() {
         </div>
       </nav>
 
-      {/* Section dot nav */}
-      <div style={{ position: 'fixed', insetInlineStart: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 50, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} onClick={() => setActiveSection(i)} style={{ width: '8px', height: activeSection === i ? '24px' : '8px', borderRadius: '4px', background: activeSection === i ? 'white' : 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 300ms ease' }} />
-        ))}
-      </div>
-
-      {/* ── Settings gear — FIXED in bottom nav bar, spinning ── */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 70,
-        padding: '10px 24px',
-        paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
-        background: 'rgba(5,5,16,0.85)',
-        backdropFilter: 'blur(20px)',
-        borderTop: '1px solid rgba(255,255,255,0.07)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <button
-          ref={gearRef}
-          onClick={() => setShowPasswordGate(true)}
-          title={t('admin_title')}
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '10px 24px', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', transition: 'background 200ms' }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)')}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)')}
-        >
-          <Settings size={18} className="gear-spin" />
-          {t('admin_settings')}
-        </button>
-      </div>
-
       {/* ─── Landing Sections ─── */}
       <div className="bottom-nav-safe">
         <HeroCarousel />
-        <HeroVideo />
-        <HeroVex />
         <AcademyShowcase />
         <StudentComments />
         <DeveloperCredit />
