@@ -1,9 +1,10 @@
+import DisplayScreen from './DisplayScreen';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSections } from '../../hooks/useSections';
 import { useContent } from '../../hooks/useContent';
 import { useDownloadControlsVisibility } from '../../hooks/useDownloadControlsVisibility';
-import {
+import { Monitor,
   LayoutDashboard,
   BookOpen,
   FileText,
@@ -84,7 +85,7 @@ const INITIAL_COMMENTS: Comment[] = [
 ];
 
 // ===== SIDEBAR =====
-type Tab = 'dashboard' | 'sections' | 'content' | 'comments' | 'analytics' | 'settings';
+type Tab = 'dashboard' | 'sections' | 'content' | 'comments' | 'analytics' | 'settings' | 'display';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
@@ -93,6 +94,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'comments', label: 'Comments', icon: <MessageSquare size={18} /> },
   { id: 'analytics', label: 'Analytics', icon: <BarChart2 size={18} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+  { id: 'display', label: 'شاشة العرض', icon: <Monitor size={18} /> },
 ];
 
 // ===== DASHBOARD TAB =====
@@ -1086,6 +1088,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange }: Ad
       case 'content': return <ContentTab />;
       case 'comments': return <CommentsTab />;
       case 'analytics': return <AnalyticsTab />;
+      case 'display': return <DisplayScreen />;
       case 'settings':
         return (
           <SettingsTab
