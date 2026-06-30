@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { SUBJECT_IMAGES } from '../../assets/subjects';
+import { gsap } from 'gsap';
 
 const IMAGES = [
   { src: SUBJECT_IMAGES.math,     bg: '#F4845F', panel: '#F79B7F', label: 'Mathematics',  labelAr: 'الرياضيات' },
@@ -28,6 +29,7 @@ export default function HeroCarousel() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const [isDragging, setIsDragging] = useState(false);
   const constraintsRef = useRef<HTMLDivElement>(null);
+  const centerItemRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     preloadImages();
@@ -128,15 +130,8 @@ export default function HeroCarousel() {
           </span>
         </div>
 
-        {/* Top-left Brand Label */}
-        <div style={{ position: 'absolute', top: '24px', left: isMobile ? '16px' : '32px', zIndex: 60 }}>
-          <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'white', opacity: 0.9, letterSpacing: '0.18em' }}>
-            EDUVERSE
-          </span>
-        </div>
-
-        {/* Subject counter — top right */}
-        <div style={{ position: 'absolute', top: '24px', right: isMobile ? '16px' : '32px', zIndex: 60, transition: 'opacity 400ms ease' }}>
+        {/* Subject counter — top right (below the fixed global nav) */}
+        <div style={{ position: 'absolute', top: isMobile ? '76px' : '88px', insetInlineEnd: isMobile ? '16px' : '32px', zIndex: 55, transition: 'opacity 400ms ease' }}>
           <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'white', opacity: 0.75, letterSpacing: '0.14em' }}>
             {`${activeIndex + 1} / 4 — ${IMAGES[activeIndex].label}`}
           </span>
@@ -162,6 +157,27 @@ export default function HeroCarousel() {
               navigate('prev');
             }
           }}
+          onMouseMove={(e) => {
+            // Lightweight GSAP 3D tilt on the active book — only runs while
+            // the pointer is actually moving over the section, no idle cost.
+            if (isMobile || isDragging || !centerItemRef.current) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const px = (e.clientX - rect.left) / rect.width - 0.5;
+            const py = (e.clientY - rect.top) / rect.height - 0.5;
+            gsap.to(centerItemRef.current, {
+              rotateY: px * 14,
+              rotateX: -py * 10,
+              transformPerspective: 900,
+              duration: 0.5,
+              ease: 'power2.out',
+              overwrite: 'auto',
+            });
+          }}
+          onMouseLeave={() => {
+            if (centerItemRef.current) {
+              gsap.to(centerItemRef.current, { rotateX: 0, rotateY: 0, duration: 0.6, ease: 'elastic.out(1, 0.5)', overwrite: 'auto' });
+            }
+          }}
           style={{
             position: 'absolute', inset: 0, zIndex: 25,
             cursor: isDragging ? 'grabbing' : 'grab',
@@ -174,7 +190,7 @@ export default function HeroCarousel() {
         {/* Carousel Items (zIndex 3 — below drag layer but visually on top of text) */}
         <div style={{ position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none' }}>
           {IMAGES.map((item, index) => (
-            <div key={index} style={getRoleStyle(index)}>
+            <div key={index} ref={index === center ? centerItemRef : undefined} style={{ ...getRoleStyle(index), transformStyle: 'preserve-3d' }}>
               <img
                 src={item.src}
                 alt={item.label}
@@ -221,11 +237,11 @@ export default function HeroCarousel() {
         {/* Bottom-left Text + Nav Buttons (zIndex 60 — above drag layer) */}
         <div
           style={{
-            position: 'absolute', bottom: isMobile ? '24px' : '80px',
-            left: isMobile ? '16px' : '96px', zIndex: 60, maxWidth: '320px',
+            position: 'absolute', bottom: isMobile ? '120px' : '80px',
+            left: isMobile ? '16px' : '96px', zIndex: 60, maxWidth: isMobile ? '70vw' : '320px',
           }}
         >
-          <p style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: isMobile ? '8px' : '12px', fontSize: isMobile ? '14px' : '22px', color: 'white', opacity: 0.95 }}>
+          <p style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: isMobile ? '10px' : '12px', fontSize: isMobile ? '13px' : '22px', color: 'white', opacity: 0.95, lineHeight: 1.3 }}>
             EDUVERSE — LEARN ANYTHING
           </p>
 
@@ -247,11 +263,12 @@ export default function HeroCarousel() {
                 onClick={() => navigate(dir)}
                 aria-label={label}
                 style={{
-                  width: isMobile ? '48px' : '64px', height: isMobile ? '48px' : '64px',
+                  width: isMobile ? '40px' : '64px', height: isMobile ? '40px' : '64px',
                   borderRadius: '50%', background: 'transparent',
                   border: '2px solid rgba(255,255,255,0.9)', color: 'white', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'transform 150ms ease, background-color 150ms ease',
+                  flexShrink: 0,
                 }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)';
@@ -262,7 +279,7 @@ export default function HeroCarousel() {
                   (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
                 }}
               >
-                <Icon size={26} strokeWidth={2.25} />
+                <Icon size={isMobile ? 18 : 26} strokeWidth={2.25} />
               </button>
             ))}
           </div>
@@ -274,11 +291,11 @@ export default function HeroCarousel() {
           style={{
             position: 'absolute', bottom: isMobile ? '24px' : '80px',
             right: isMobile ? '16px' : '40px', zIndex: 60,
-            display: 'flex', alignItems: 'center', gap: '8px',
+            display: 'flex', alignItems: 'center', gap: '6px',
             fontFamily: "'Anton', sans-serif",
-            fontSize: 'clamp(20px, 4vw, 56px)',
+            fontSize: isMobile ? '15px' : 'clamp(28px, 4vw, 56px)',
             fontWeight: 400, color: 'white', opacity: 0.95,
-            letterSpacing: '-0.02em', lineHeight: 1,
+            letterSpacing: '-0.01em', lineHeight: 1,
             textTransform: 'uppercase', textDecoration: 'none',
             transition: 'opacity 200ms ease',
           }}
@@ -286,13 +303,13 @@ export default function HeroCarousel() {
           onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.95'; }}
         >
           EXPLORE COURSES
-          <ArrowRight size={isMobile ? 20 : 32} strokeWidth={2.25} />
+          <ArrowRight size={isMobile ? 16 : 32} strokeWidth={2.25} />
         </a>
 
         {/* Progress Dots */}
         <div
           style={{
-            position: 'absolute', bottom: isMobile ? '80px' : '44px',
+            position: 'absolute', bottom: isMobile ? '72px' : '44px',
             left: '50%', transform: 'translateX(-50%)',
             zIndex: 60, display: 'flex', gap: '8px',
           }}
