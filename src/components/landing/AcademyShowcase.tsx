@@ -308,6 +308,7 @@ function TeachingPhilosophy() {
             {features.map((f, i) => (
               <div
                 key={i}
+                className={`reveal-3d-left reveal-delay-${(i % 3) + 1}`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -561,9 +562,10 @@ function FeaturedCourses() {
             gap: '20px',
           }}
         >
-          {courses.map((course) => (
+          {courses.map((course, ci) => (
             <div
               key={course.id}
+              className={`reveal-3d reveal-delay-${(ci % 3) + 1}`}
               style={{
                 borderRadius: '24px',
                 overflow: 'hidden',
