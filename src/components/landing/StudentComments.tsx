@@ -72,7 +72,7 @@ export default function StudentComments() {
     <section dir={dir} style={{ background: '#07070f', padding: '80px 0' }}>
       <div style={{ maxWidth: '720px', margin: '0 auto', padding: '0 20px' }}>
         {/* Header */}
-        <div className="reveal" style={{ textAlign: 'center', marginBottom: '48px' }}>
+        <div className="reveal-3d" style={{ textAlign: 'center', marginBottom: '48px' }}>
           <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', color: '#f97316', textTransform: 'uppercase' }}>
             {dir === 'rtl' ? 'آراء الطلاب' : 'Student Reviews'}
           </span>
