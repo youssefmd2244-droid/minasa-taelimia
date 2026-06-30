@@ -181,7 +181,7 @@ export default function HeroCarousel() {
                 draggable={false}
                 style={{
                   width: '100%', height: '100%',
-                  objectFit: 'contain', objectPosition: 'bottom center',
+                  objectFit: 'contain', objectPosition: 'bottom center', filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.3))',
                   userSelect: 'none', pointerEvents: 'none',
                 }}
               />
