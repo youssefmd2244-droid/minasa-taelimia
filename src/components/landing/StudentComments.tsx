@@ -6,6 +6,7 @@ import { Send, ThumbsUp, MessageCircle } from 'lucide-react';
 interface Comment {
   id: number;
   name: string;
+  phone: string;
   avatar: string;
   text: string;
   time: string;
@@ -22,9 +23,9 @@ interface Reply {
 }
 
 const INITIAL_COMMENTS: Comment[] = [
-  { id: 1, name: 'أحمد علي', avatar: '🧑‍🎓', text: 'المنصة دي رائعة جداً! الشرح واضح والمحتوى ممتاز.', time: 'منذ ٢ ساعة', likes: 12, liked: false, replies: [{ id: 1, name: 'EDUVERSE', text: 'شكراً يا أحمد! سعيدين بتجربتك ❤️', time: 'منذ ١ ساعة' }] },
-  { id: 2, name: 'سارة محمد', avatar: '👩‍🎓', text: 'الكورسات منظمة وسهل التنقل بينها. استفدت كتير من الرياضيات!', time: 'منذ ٥ ساعات', likes: 8, liked: false, replies: [] },
-  { id: 3, name: 'عمر حسن', avatar: '👨‍💻', text: 'تطبيق ممتاز وسريع. بس كنت عايز فيديوهات أكتر في قسم العلوم.', time: 'منذ يوم', likes: 5, liked: false, replies: [] },
+  { id: 1, name: 'أحمد علي', phone: '01000000001', avatar: '🧑‍🎓', text: 'المنصة دي رائعة جداً! الشرح واضح والمحتوى ممتاز.', time: 'منذ ٢ ساعة', likes: 12, liked: false, replies: [{ id: 1, name: 'EDUVERSE', text: 'شكراً يا أحمد! سعيدين بتجربتك ❤️', time: 'منذ ١ ساعة' }] },
+  { id: 2, name: 'سارة محمد', phone: '01000000002', avatar: '👩‍🎓', text: 'الكورسات منظمة وسهل التنقل بينها. استفدت كتير من الرياضيات!', time: 'منذ ٥ ساعات', likes: 8, liked: false, replies: [] },
+  { id: 3, name: 'عمر حسن', phone: '01000000003', avatar: '👨‍💻', text: 'تطبيق ممتاز وسريع. بس كنت عايز فيديوهات أكتر في قسم العلوم.', time: 'منذ يوم', likes: 5, liked: false, replies: [] },
 ];
 
 export default function StudentComments() {
@@ -32,16 +33,23 @@ export default function StudentComments() {
   const [comments, setComments] = useState<Comment[]>(INITIAL_COMMENTS);
   const [newText, setNewText] = useState('');
   const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [error, setError] = useState('');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
 
+  const isValidPhone = (phone: string) => /^01[0-9]{9}$/.test(phone.trim());
+
   const addComment = () => {
-    if (!newText.trim() || !newName.trim()) return;
+    if (!newName.trim()) { setError(dir === 'rtl' ? 'من فضلك اكتب اسمك' : 'Please enter your name'); return; }
+    if (!isValidPhone(newPhone)) { setError(dir === 'rtl' ? 'رقم الهاتف غير صحيح (مثال: 01012345678)' : 'Invalid phone number (e.g. 01012345678)'); return; }
+    if (!newText.trim()) { setError(dir === 'rtl' ? 'من فضلك اكتب تعليقك' : 'Please write your comment'); return; }
+    setError('');
     setComments((prev) => [{
-      id: Date.now(), name: newName.trim(), avatar: '👤',
+      id: Date.now(), name: newName.trim(), phone: newPhone.trim(), avatar: '👤',
       text: newText.trim(), time: 'الآن', likes: 0, liked: false, replies: [],
     }, ...prev]);
-    setNewText(''); setNewName('');
+    setNewText(''); setNewName(''); setNewPhone('');
   };
 
   const toggleLike = (id: number) => {
@@ -81,7 +89,16 @@ export default function StudentComments() {
               placeholder={dir === 'rtl' ? 'اسمك...' : 'Your name...'}
               style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '10px 16px', color: 'white', fontSize: '14px', outline: 'none', textAlign: dir === 'rtl' ? 'right' : 'left' }}
             />
+            <input
+              value={newPhone} onChange={(e) => setNewPhone(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder={dir === 'rtl' ? 'رقم الهاتف...' : 'Phone number...'}
+              type="tel" maxLength={11}
+              style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '10px 16px', color: 'white', fontSize: '14px', outline: 'none', textAlign: dir === 'rtl' ? 'right' : 'left', direction: 'ltr' }}
+            />
           </div>
+          {error && (
+            <p style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px', textAlign: dir === 'rtl' ? 'right' : 'left' }}>{error}</p>
+          )}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
             <textarea
               value={newText} onChange={(e) => setNewText(e.target.value)}
