@@ -12,7 +12,7 @@ import StudentComments from './components/landing/StudentComments';
 import { useScrollReveal } from './hooks/useScrollReveal';
 
 // ===== Password gate inline =====
-const ADMIN_PASS = 'admin123';
+const ADMIN_PASS = '20042007';
 
 function PasswordGate({ onEnter }: { onEnter: () => void }) {
   const { t, dir } = useLanguage();
