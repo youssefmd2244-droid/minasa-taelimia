@@ -6,7 +6,7 @@
  * دفعة واحدة. زر التنزيل في واجهة الطالب لا يُركَّب في DOM أصلاً إلا
  * للعناصر التي `allow_download === true` تحديداً (انظر CoursesSection).
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured, type ContentRow } from '../lib/supabaseClient';
 
 const DEMO_CONTENT: ContentRow[] = [
@@ -37,6 +37,9 @@ export function useContent(sectionId?: number) {
   const [items, setItems] = useState<ContentRow[]>(isSupabaseConfigured ? [] : DEMO_CONTENT);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
+  // نفس مبدأ useSections — اسم فريد لكل نسخة عشان لا يحصل تصادم لما
+  // SearchOverlay و LessonList يستخدموا useContent() في نفس اللحظة.
+  const channelName = useRef(`content-changes-${Math.random().toString(36).slice(2)}`).current;
 
   const refresh = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -57,13 +60,13 @@ export function useContent(sectionId?: number) {
     refresh();
     if (!isSupabaseConfigured || !supabase) return;
     const channel = supabase
-      .channel('content-changes')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'content' }, () => refresh())
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refresh]);
+  }, [refresh, channelName]);
 
   /** Toggles whether a single content item is allowed to show a download button. Default is always false. */
   const setAllowDownload = useCallback(async (id: number, allow: boolean) => {
