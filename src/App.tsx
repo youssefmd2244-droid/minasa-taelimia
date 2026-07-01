@@ -9,6 +9,8 @@ import AcademyShowcase from './components/landing/AcademyShowcase';
 import AdminDashboard from './components/admin/AdminDashboard';
 import DeveloperCredit from './components/landing/DeveloperCredit';
 import StudentComments from './components/landing/StudentComments';
+import GlobalPresence from './components/landing/GlobalPresence';
+import CoursesGallerySection from './components/landing/CoursesGallerySection';
 import { useScrollReveal } from './hooks/useScrollReveal';
 
 // ===== Password gate inline =====
@@ -19,7 +21,9 @@ function PasswordGate({ onEnter }: { onEnter: () => void }) {
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
   const submit = () => {
-    if (pw === ADMIN_PASS) { onEnter(); }
+    // يدعم تغيير الباسورد من الإعدادات
+    const saved = localStorage.getItem('admin_password') || ADMIN_PASS;
+    if (pw === saved) { onEnter(); }
     else { setErr(true); setTimeout(() => setErr(false), 1500); }
   };
   return (
@@ -106,7 +110,11 @@ function AppContent() {
         <button onClick={exitAdmin} style={{ position: 'fixed', top: '16px', insetInlineStart: '16px', zIndex: 100, padding: '8px 20px', borderRadius: '999px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'white', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
           ← {t('admin_exit')}
         </button>
-        <AdminDashboard currentPassword={adminPassword} onPasswordChange={setAdminPassword} />
+        <AdminDashboard
+          currentPassword={adminPassword}
+          onPasswordChange={setAdminPassword}
+          onExit={exitAdmin}
+        />
       </div>
     );
   }
@@ -169,6 +177,13 @@ function AppContent() {
       <div className="bottom-nav-safe">
         <HeroCarousel />
         <AcademyShowcase />
+
+        {/* معرض الكورسات الدائري ثلاثي الأبعاد */}
+        <CoursesGallerySection />
+
+        {/* الانتشار الجغرافي مع الكرة الأرضية */}
+        <GlobalPresence />
+
         <StudentComments />
         <DeveloperCredit />
 
