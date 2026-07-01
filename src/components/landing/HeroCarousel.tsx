@@ -27,15 +27,34 @@ export default function HeroCarousel() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  // Whether the device actually has a mouse/trackpad (fine pointer).
+  // Screen WIDTH alone is not reliable inside some Android WebViews
+  // (Capacitor can report a stale/desktop-like innerWidth before the
+  // CSS viewport settles), so we gate the drag-capture layer on pointer
+  // capability as a second, independent guard — this is what actually
+  // prevents the "stuck, can't scroll up/down" bug on real phones.
+  const [hasFinePointer, setHasFinePointer] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: fine)').matches
+  );
   const [isDragging, setIsDragging] = useState(false);
   const constraintsRef = useRef<HTMLDivElement>(null);
   const centerItemRef = useRef<HTMLDivElement>(null);
+
+  const enableDragLayer = !isMobile && hasFinePointer;
 
   useEffect(() => {
     preloadImages();
     const handleResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    const pointerQuery = window.matchMedia?.('(pointer: fine)');
+    const handlePointerChange = (e: MediaQueryListEvent) => setHasFinePointer(e.matches);
+    pointerQuery?.addEventListener?.('change', handlePointerChange);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      pointerQuery?.removeEventListener?.('change', handlePointerChange);
+    };
   }, []);
 
   const navigate = useCallback(
@@ -100,7 +119,7 @@ export default function HeroCarousel() {
     >
       <div
         ref={constraintsRef}
-        style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}
+        style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', touchAction: 'pan-y' }}
       >
         {/* Grain Overlay */}
         <div
@@ -148,7 +167,7 @@ export default function HeroCarousel() {
             touchAction:'pan-y', trapping the user on this section unable
             to scroll down. On mobile, navigation is via the arrow buttons
             and dots below instead (already present, no functionality lost). */}
-        {!isMobile && (
+        {enableDragLayer && (
         <motion.div
           drag="x"
           dragConstraints={constraintsRef}
@@ -219,7 +238,7 @@ export default function HeroCarousel() {
         </div>
 
         {/* ── Swipe hint (shown briefly on first load, desktop only — see note above) ── */}
-        {!isMobile && (
+        {enableDragLayer && (
         <motion.div
           initial={{ opacity: 0.75 }}
           animate={{ opacity: 0 }}
