@@ -9,8 +9,9 @@ export default function CoursesGallerySection() {
     // always scrolls through it freely, and the gallery rotates on its own
     // (auto-rotate + a light scroll-linked nudge) without ever blocking scroll.
     <section
+      id="courses"
       className="relative w-full flex flex-col items-center justify-center overflow-hidden"
-      style={{ minHeight: '100vh', padding: '80px 0', background: 'linear-gradient(180deg, #050510 0%, #0d0d24 50%, #050510 100%)' }}
+      style={{ minHeight: '100vh', padding: '80px 0', background: 'linear-gradient(180deg, #050510 0%, #0d0d24 50%, #050510 100%)', scrollMarginTop: '80px' }}
     >
       {/* Heading */}
       <motion.div className="text-center z-10 px-4 mb-8"
