@@ -7,6 +7,7 @@ import {
   File, Music, StopCircle, ZoomIn, Monitor,
 } from 'lucide-react';
 import DisplayScreen from './DisplayScreen';
+import { SUPABASE_SCHEMA } from './SchemaPanel';
 
 // ─── Auth code for password change only ───
 const REQUIRED_AUTH_CODE = 'Yy2004//';
@@ -676,6 +677,7 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
   const [authCode, setAuthCode] = useState(''); const [showPw, setShowPw] = useState(false);
   const [pwSuccess, setPwSuccess] = useState(false); const [pwError, setPwError] = useState('');
   const [cacheCleared, setCacheCleared] = useState(false);
+  const [schemaCopied, setSchemaCopied] = useState(false);
   const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
   const canSave = newPassword.length > 0 && newPassword === confirmPassword && authCode === REQUIRED_AUTH_CODE;
   const handleSavePw = () => {
@@ -724,6 +726,19 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
         {cacheCleared && <div className="mb-2 px-3 py-2 rounded-xl text-xs text-green-400 flex items-center gap-2" style={{ background: 'rgba(107,191,122,0.1)' }}><Check size={12} /> تم المسح</div>}
         <button onClick={async () => { try { if (caches) { const names = await caches.keys(); await Promise.all(names.map(n => caches.delete(n))); } setCacheCleared(true); setTimeout(() => setCacheCleared(false), 3000); } catch {} }}
           className="px-3 py-2 rounded-xl text-sm font-medium bg-red-500/20 text-red-400">مسح الذاكرة المؤقتة</button>
+      </div>
+      {/* Supabase Schema Reference */}
+      <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center gap-2 mb-3"><FileText size={16} className="text-white/60" /><h3 className="text-base font-bold text-white">سكيما قاعدة بيانات Supabase</h3></div>
+        <p className="text-xs text-white/40 mb-3">انسخ هذا الكود ونفّذه مرة واحدة في محرر SQL الخاص بمشروع Supabase لإنشاء الجداول المطلوبة.</p>
+        <pre className="text-[11px] leading-relaxed text-white/60 whitespace-pre-wrap max-h-48 overflow-y-auto rounded-xl p-3" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)' }}>{SUPABASE_SCHEMA}</pre>
+        <button
+          onClick={async () => { try { await navigator.clipboard.writeText(SUPABASE_SCHEMA); setSchemaCopied(true); setTimeout(() => setSchemaCopied(false), 3000); } catch {} }}
+          className="mt-3 px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2"
+          style={{ background: schemaCopied ? 'rgba(107,191,122,0.15)' : 'rgba(255,255,255,0.08)', color: schemaCopied ? '#6BBF7A' : 'white' }}
+        >
+          {schemaCopied ? <Check size={13} /> : <FileText size={13} />} {schemaCopied ? 'تم النسخ' : 'نسخ السكيما'}
+        </button>
       </div>
       {/* Change password */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
