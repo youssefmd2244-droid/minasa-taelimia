@@ -1,14 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { SUBJECT_IMAGES } from '../../assets/subjects';
-import { gsap } from 'gsap';
 
 const IMAGES = [
-  { src: SUBJECT_IMAGES.math,     bg: '#F4845F', panel: '#F79B7F', label: 'Mathematics',  labelAr: 'الرياضيات' },
-  { src: SUBJECT_IMAGES.science,  bg: '#6BBF7A', panel: '#85CC92', label: 'Science',       labelAr: 'العلوم' },
-  { src: SUBJECT_IMAGES.language, bg: '#E882B4', panel: '#ED9DC4', label: 'Language',      labelAr: 'اللغة العربية' },
-  { src: SUBJECT_IMAGES.art,      bg: '#6EB5FF', panel: '#8DC4FF', label: 'Art & Design',  labelAr: 'الفنون' },
+  { src: SUBJECT_IMAGES.math,     bg: '#F4845F', label: 'Mathematics',  labelAr: 'الرياضيات' },
+  { src: SUBJECT_IMAGES.science,  bg: '#6BBF7A', label: 'Science',       labelAr: 'العلوم' },
+  { src: SUBJECT_IMAGES.language, bg: '#E882B4', label: 'Language',      labelAr: 'اللغة العربية' },
+  { src: SUBJECT_IMAGES.art,      bg: '#6EB5FF', label: 'Art & Design',  labelAr: 'الفنون' },
 ];
 
 // Preload images on mount
@@ -19,42 +17,36 @@ const preloadImages = () => {
   });
 };
 
-const GRAIN_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E")`;
+/*
+  ── DIAGNOSTIC BUILD ──
+  This is a deliberately stripped-down version of HeroCarousel, with every
+  "exotic" mechanism removed: no framer-motion drag layer, no GSAP tilt,
+  no CSS blur filters, no SVG grain overlay, no preserve-3d layers, no
+  nested overflow:hidden wrapper. Only: images, simple CSS transform/opacity
+  transitions, and plain onClick buttons.
 
-const DRAG_THRESHOLD = 80; // px — minimum drag distance to trigger navigation
+  Purpose: earlier fixes (removing blur, removing the drag layer, removing
+  the grain texture) did not resolve the "swipe doesn't scroll, taps work"
+  issue, even reproduced in plain mobile Chrome. This version exists to
+  answer one question definitively: does normal touch-scroll work at all
+  on this exact screen when NOTHING custom is intercepting touches?
 
+  - If scrolling works now -> something removed here was still the cause,
+    and we re-add features one at a time until it breaks again.
+  - If scrolling still does NOT work -> the cause is not in this component
+    at all (it's global: CSS on html/body, or something in a parent/sibling
+    component), and we should look there next instead of this file.
+*/
 export default function HeroCarousel() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
-  // Whether the device actually has a mouse/trackpad (fine pointer).
-  // Screen WIDTH alone is not reliable inside some Android WebViews
-  // (Capacitor can report a stale/desktop-like innerWidth before the
-  // CSS viewport settles), so we gate the drag-capture layer on pointer
-  // capability as a second, independent guard — this is what actually
-  // prevents the "stuck, can't scroll up/down" bug on real phones.
-  const [hasFinePointer, setHasFinePointer] = useState(
-    () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: fine)').matches
-  );
-  const [isDragging, setIsDragging] = useState(false);
-  const constraintsRef = useRef<HTMLDivElement>(null);
-  const centerItemRef = useRef<HTMLDivElement>(null);
-
-  const enableDragLayer = !isMobile && hasFinePointer;
 
   useEffect(() => {
     preloadImages();
     const handleResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener('resize', handleResize);
-
-    const pointerQuery = window.matchMedia?.('(pointer: fine)');
-    const handlePointerChange = (e: MediaQueryListEvent) => setHasFinePointer(e.matches);
-    pointerQuery?.addEventListener?.('change', handlePointerChange);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      pointerQuery?.removeEventListener?.('change', handlePointerChange);
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const navigate = useCallback(
@@ -64,324 +56,160 @@ export default function HeroCarousel() {
       setActiveIndex((prev) =>
         direction === 'next' ? (prev + 1) % 4 : (prev + 3) % 4
       );
-      setTimeout(() => setIsAnimating(false), 650);
+      setTimeout(() => setIsAnimating(false), 500);
     },
     [isAnimating]
   );
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') navigate('prev');
-      if (e.key === 'ArrowRight') navigate('next');
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [navigate]);
-
-  const center = activeIndex;
-  const left  = (activeIndex + 3) % 4;
-  const right = (activeIndex + 1) % 4;
-
-  const getRoleStyle = (index: number): React.CSSProperties => {
-    // On mobile, drop `filter` from the transition list and willChange —
-    // animating CSS filter (blur) is compositor/GPU heavy, and on weaker
-    // Android GPUs it can starve the main thread long enough that touch
-    // scroll input stops being processed in real time (taps still fire
-    // fine since those don't need continuous frames — this is exactly
-    // the "swipe does nothing, tap works" pattern). Desktop keeps the
-    // full effect since it's cheap there.
-    const transition = isMobile
-      ? 'transform 650ms cubic-bezier(0.4,0,0.2,1), opacity 650ms cubic-bezier(0.4,0,0.2,1), left 650ms cubic-bezier(0.4,0,0.2,1), bottom 650ms cubic-bezier(0.4,0,0.2,1), height 650ms cubic-bezier(0.4,0,0.2,1)'
-      : 'transform 650ms cubic-bezier(0.4,0,0.2,1), filter 650ms cubic-bezier(0.4,0,0.2,1), opacity 650ms cubic-bezier(0.4,0,0.2,1), left 650ms cubic-bezier(0.4,0,0.2,1), bottom 650ms cubic-bezier(0.4,0,0.2,1), height 650ms cubic-bezier(0.4,0,0.2,1)';
-    const base: React.CSSProperties = {
-      position: 'absolute',
-      aspectRatio: '0.6 / 1',
-      transition,
-      willChange: isMobile ? 'transform, opacity' : 'transform, filter, opacity',
-    };
-
-    if (index === center) {
-      return { ...base, transform: `translateX(-50%) scale(${isMobile ? 1.25 : 1.68})`, filter: isMobile ? undefined : 'blur(0px)', opacity: 1, zIndex: 20, left: '50%', height: isMobile ? '60%' : '92%', bottom: isMobile ? '22%' : '0' };
-    }
-    if (index === left) {
-      return { ...base, transform: 'translateX(-50%) scale(1)', filter: isMobile ? undefined : 'blur(2px)', opacity: 0.85, zIndex: 10, left: isMobile ? '20%' : '30%', height: isMobile ? '16%' : '28%', bottom: isMobile ? '32%' : '12%' };
-    }
-    if (index === right) {
-      return { ...base, transform: 'translateX(-50%) scale(1)', filter: isMobile ? undefined : 'blur(2px)', opacity: 0.85, zIndex: 10, left: isMobile ? '80%' : '70%', height: isMobile ? '16%' : '28%', bottom: isMobile ? '32%' : '12%' };
-    }
-    // back
-    return { ...base, transform: 'translateX(-50%) scale(1)', filter: isMobile ? undefined : 'blur(4px)', opacity: 1, zIndex: 5, left: '50%', height: isMobile ? '13%' : '22%', bottom: isMobile ? '32%' : '12%' };
-  };
 
   return (
     <section
       style={{
         backgroundColor: IMAGES[activeIndex].bg,
-        transition: 'background-color 650ms cubic-bezier(0.4,0,0.2,1)',
+        transition: 'background-color 500ms ease',
         fontFamily: 'Inter, sans-serif',
         position: 'relative',
         width: '100%',
-        overflow: 'hidden',
+        minHeight: '100vh',
       }}
     >
+      {/* Giant title text */}
       <div
-        ref={constraintsRef}
-        style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', touchAction: 'pan-y' }}
+        style={{
+          position: 'absolute', insetInline: 0, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', pointerEvents: 'none', userSelect: 'none', zIndex: 2, top: '10%',
+        }}
       >
-        {/* Grain Overlay — skipped on mobile: feTurbulence tiled across the
-            full viewport is expensive to rasterize on weaker Android GPUs
-            and was a likely contributor to the frozen-touch-scroll issue.
-            Purely decorative, so no loss of functionality by dropping it. */}
-        {!isMobile && (
-        <div
+        <span
           style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 50,
-            backgroundImage: GRAIN_SVG, backgroundSize: '200px 200px',
-            backgroundRepeat: 'repeat', opacity: 0.4,
-          }}
-        />
-        )}
-
-        {/* Giant Ghost Text */}
-        <div
-          style={{
-            position: 'absolute', insetInline: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', pointerEvents: 'none', userSelect: 'none', zIndex: 2, top: '18%',
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "'Anton', sans-serif",
-              fontSize: 'clamp(90px, 28vw, 380px)',
-              fontWeight: 900, color: 'white', opacity: 1, lineHeight: 1,
-              textTransform: 'uppercase', letterSpacing: '-0.02em', whiteSpace: 'nowrap',
-            }}
-          >
-            LEARN MORE
-          </span>
-        </div>
-
-        {/* Subject counter — top right (below the fixed global nav) */}
-        <div style={{ position: 'absolute', top: isMobile ? '76px' : '88px', insetInlineEnd: isMobile ? '16px' : '32px', zIndex: 55, transition: 'opacity 400ms ease' }}>
-          <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'white', opacity: 0.75, letterSpacing: '0.14em' }}>
-            {`${activeIndex + 1} / 4 — ${IMAGES[activeIndex].label}`}
-          </span>
-        </div>
-
-        {/* ── Draggable carousel container ──
-            Invisible full-viewport layer that captures drag/swipe gestures.
-            zIndex sits between the ghost text (2) and the book items (3),
-            so items are still visible but gestures are captured here.
-
-            IMPORTANT: only rendered on non-mobile (mouse) — on touch
-            devices, framer-motion's JS-based drag recognition can swallow
-            vertical touch input inside some Android WebViews even with
-            touchAction:'pan-y', trapping the user on this section unable
-            to scroll down. On mobile, navigation is via the arrow buttons
-            and dots below instead (already present, no functionality lost). */}
-        {enableDragLayer && (
-        <motion.div
-          drag="x"
-          dragConstraints={constraintsRef}
-          dragElastic={0.15}
-          dragMomentum={false}
-          dragDirectionLock
-          onDragStart={() => setIsDragging(true)}
-          onDragEnd={(_e, info) => {
-            setIsDragging(false);
-            const { offset, velocity } = info;
-            // Trigger navigation if drag distance OR velocity exceeds threshold
-            if (offset.x < -DRAG_THRESHOLD || velocity.x < -400) {
-              navigate('next');
-            } else if (offset.x > DRAG_THRESHOLD || velocity.x > 400) {
-              navigate('prev');
-            }
-          }}
-          onMouseMove={(e) => {
-            // Lightweight GSAP 3D tilt on the active book — only runs while
-            // the pointer is actually moving over the section, no idle cost.
-            if (isMobile || isDragging || !centerItemRef.current) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const px = (e.clientX - rect.left) / rect.width - 0.5;
-            const py = (e.clientY - rect.top) / rect.height - 0.5;
-            gsap.to(centerItemRef.current, {
-              rotateY: px * 14,
-              rotateX: -py * 10,
-              transformPerspective: 900,
-              duration: 0.5,
-              ease: 'power2.out',
-              overwrite: 'auto',
-            });
-          }}
-          onMouseLeave={() => {
-            if (centerItemRef.current) {
-              gsap.to(centerItemRef.current, { rotateX: 0, rotateY: 0, duration: 0.6, ease: 'elastic.out(1, 0.5)', overwrite: 'auto' });
-            }
-          }}
-          style={{
-            position: 'absolute', inset: 0, zIndex: 25,
-            cursor: isDragging ? 'grabbing' : 'grab',
-            // Transparent — only used for gesture capture
-            background: 'transparent',
-            // Let the browser/WebView handle vertical scrolling natively;
-            // only horizontal panning is intercepted for the swipe gesture.
-            touchAction: 'pan-y',
-          }}
-          whileDrag={{ cursor: 'grabbing' }}
-        />
-        )}
-
-        {/* Carousel Items (zIndex 3 — below drag layer but visually on top of text) */}
-        <div style={{ position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none' }}>
-          {IMAGES.map((item, index) => (
-            <div key={index} ref={index === center ? centerItemRef : undefined} style={{ ...getRoleStyle(index), transformStyle: isMobile ? undefined : 'preserve-3d' }}>
-              <img
-                src={item.src}
-                alt={item.label}
-                draggable={false}
-                style={{
-                  width: '100%', height: '100%',
-                  objectFit: 'contain', objectPosition: 'bottom center', filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.3))',
-                  userSelect: 'none', pointerEvents: 'none',
-                }}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* ── Swipe hint (shown briefly on first load, desktop only — see note above) ── */}
-        {enableDragLayer && (
-        <motion.div
-          initial={{ opacity: 0.75 }}
-          animate={{ opacity: 0 }}
-          transition={{ delay: 2.2, duration: 1.2 }}
-          style={{
-            position: 'absolute', top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 26, pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', gap: '8px',
-            color: 'rgba(255,255,255,0.55)', fontSize: '12px',
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-          }}
-        >
-          <motion.span
-            animate={{ x: [-6, 6, -6] }}
-            transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            ←
-          </motion.span>
-          Swipe or drag
-          <motion.span
-            animate={{ x: [6, -6, 6] }}
-            transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            →
-          </motion.span>
-        </motion.div>
-        )}
-
-        {/* Bottom-left Text + Nav Buttons (zIndex 60 — above drag layer) */}
-        <div
-          style={{
-            position: 'absolute', bottom: isMobile ? '120px' : '80px',
-            left: isMobile ? '16px' : '96px', zIndex: 60, maxWidth: isMobile ? '70vw' : '320px',
-          }}
-        >
-          <p style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: isMobile ? '10px' : '12px', fontSize: isMobile ? '13px' : '22px', color: 'white', opacity: 0.95, lineHeight: 1.3 }}>
-            EDUVERSE — LEARN ANYTHING
-          </p>
-
-          {!isMobile && (
-            <p style={{ fontSize: '13px', color: 'white', opacity: 0.85, lineHeight: 1.6, marginBottom: '20px', maxWidth: '280px' }}>
-              Courses crafted by top educators, structured for real progress.
-              Clear levels, real certificates, real results. Start your journey today.
-            </p>
-          )}
-
-          {/* Nav Buttons */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            {[
-              { dir: 'prev' as const, Icon: ArrowLeft,  label: 'Previous subject' },
-              { dir: 'next' as const, Icon: ArrowRight, label: 'Next subject' },
-            ].map(({ dir, Icon, label }) => (
-              <button
-                key={dir}
-                onClick={() => navigate(dir)}
-                aria-label={label}
-                style={{
-                  width: isMobile ? '40px' : '64px', height: isMobile ? '40px' : '64px',
-                  borderRadius: '50%', background: 'transparent',
-                  border: '2px solid rgba(255,255,255,0.9)', color: 'white', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'transform 150ms ease, background-color 150ms ease',
-                  flexShrink: 0,
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)';
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.12)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                }}
-              >
-                <Icon size={isMobile ? 18 : 26} strokeWidth={2.25} />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Bottom-right Explore Link */}
-        <a
-          href="#courses"
-          style={{
-            position: 'absolute', bottom: isMobile ? '24px' : '80px',
-            right: isMobile ? '16px' : '40px', zIndex: 60,
-            display: 'flex', alignItems: 'center', gap: '6px',
             fontFamily: "'Anton', sans-serif",
-            fontSize: isMobile ? '15px' : 'clamp(28px, 4vw, 56px)',
-            fontWeight: 400, color: 'white', opacity: 0.95,
-            letterSpacing: '-0.01em', lineHeight: 1,
-            textTransform: 'uppercase', textDecoration: 'none',
-            transition: 'opacity 200ms ease',
+            fontSize: 'clamp(60px, 22vw, 380px)',
+            fontWeight: 900, color: 'rgba(255,255,255,0.9)', lineHeight: 1,
+            textTransform: 'uppercase', letterSpacing: '-0.02em',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.95'; }}
         >
-          EXPLORE COURSES
-          <ArrowRight size={isMobile ? 16 : 32} strokeWidth={2.25} />
-        </a>
+          LEARN MORE
+        </span>
+      </div>
 
-        {/* Progress Dots */}
-        <div
+      {/* Subject counter */}
+      <div style={{ position: 'absolute', top: isMobile ? '76px' : '88px', insetInlineEnd: isMobile ? '16px' : '32px', zIndex: 55 }}>
+        <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'white', opacity: 0.75, letterSpacing: '0.14em' }}>
+          {`${activeIndex + 1} / 4 — ${IMAGES[activeIndex].label}`}
+        </span>
+      </div>
+
+      {/* Single centered image — no absolute-positioned side items, no 3D, no blur */}
+      <div
+        style={{
+          position: 'relative', zIndex: 3, width: '100%', height: isMobile ? '55vh' : '80vh',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          paddingTop: isMobile ? '25vh' : '15vh',
+        }}
+      >
+        <img
+          key={activeIndex}
+          src={IMAGES[activeIndex].src}
+          alt={IMAGES[activeIndex].label}
+          draggable={false}
           style={{
-            position: 'absolute', bottom: isMobile ? '72px' : '44px',
-            left: '50%', transform: 'translateX(-50%)',
-            zIndex: 60, display: 'flex', gap: '8px',
+            maxHeight: '100%', maxWidth: isMobile ? '55%' : '32%',
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.3))',
+            userSelect: 'none', pointerEvents: 'none',
+            opacity: isAnimating ? 0.4 : 1,
+            transition: 'opacity 300ms ease',
           }}
-        >
-          {IMAGES.map((_, i) => (
+        />
+      </div>
+
+      {/* Bottom-left Text + Nav Buttons */}
+      <div
+        style={{
+          position: 'absolute', bottom: isMobile ? '120px' : '80px',
+          left: isMobile ? '16px' : '96px', zIndex: 60, maxWidth: isMobile ? '70vw' : '320px',
+        }}
+      >
+        <p style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: isMobile ? '10px' : '12px', fontSize: isMobile ? '13px' : '22px', color: 'white', opacity: 0.95, lineHeight: 1.3 }}>
+          EDUVERSE — LEARN ANYTHING
+        </p>
+
+        {!isMobile && (
+          <p style={{ fontSize: '13px', color: 'white', opacity: 0.85, lineHeight: 1.6, marginBottom: '20px', maxWidth: '280px' }}>
+            Courses crafted by top educators, structured for real progress.
+            Clear levels, real certificates, real results. Start your journey today.
+          </p>
+        )}
+
+        {/* Nav Buttons */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {[
+            { dir: 'prev' as const, Icon: ArrowLeft,  label: 'Previous subject' },
+            { dir: 'next' as const, Icon: ArrowRight, label: 'Next subject' },
+          ].map(({ dir, Icon, label }) => (
             <button
-              key={i}
-              onClick={() => {
-                if (!isAnimating) {
-                  setIsAnimating(true);
-                  setActiveIndex(i);
-                  setTimeout(() => setIsAnimating(false), 650);
-                }
-              }}
+              key={dir}
+              onClick={() => navigate(dir)}
+              aria-label={label}
               style={{
-                width: i === activeIndex ? '24px' : '8px', height: '8px',
-                borderRadius: '4px',
-                background: i === activeIndex ? 'white' : 'rgba(255,255,255,0.4)',
-                border: 'none', cursor: 'pointer', padding: 0,
-                transition: 'all 400ms cubic-bezier(0.4,0,0.2,1)',
+                width: isMobile ? '40px' : '64px', height: isMobile ? '40px' : '64px',
+                borderRadius: '50%', background: 'transparent',
+                border: '2px solid rgba(255,255,255,0.9)', color: 'white', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
               }}
-              aria-label={`Go to ${IMAGES[i].label}`}
-            />
+            >
+              <Icon size={isMobile ? 18 : 26} strokeWidth={2.25} />
+            </button>
           ))}
         </div>
+      </div>
+
+      {/* Bottom-right Explore Link */}
+      <a
+        href="#courses"
+        style={{
+          position: 'absolute', bottom: isMobile ? '24px' : '80px',
+          right: isMobile ? '16px' : '40px', zIndex: 60,
+          display: 'flex', alignItems: 'center', gap: '6px',
+          fontFamily: "'Anton', sans-serif",
+          fontSize: isMobile ? '15px' : 'clamp(28px, 4vw, 56px)',
+          fontWeight: 400, color: 'white', opacity: 0.95,
+          letterSpacing: '-0.01em', lineHeight: 1,
+          textTransform: 'uppercase', textDecoration: 'none',
+        }}
+      >
+        EXPLORE COURSES
+        <ArrowRight size={isMobile ? 16 : 32} strokeWidth={2.25} />
+      </a>
+
+      {/* Progress Dots */}
+      <div
+        style={{
+          position: 'absolute', bottom: isMobile ? '72px' : '44px',
+          left: '50%', transform: 'translateX(-50%)',
+          zIndex: 60, display: 'flex', gap: '8px',
+        }}
+      >
+        {IMAGES.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => {
+              if (!isAnimating) {
+                setIsAnimating(true);
+                setActiveIndex(i);
+                setTimeout(() => setIsAnimating(false), 500);
+              }
+            }}
+            style={{
+              width: i === activeIndex ? '24px' : '8px', height: '8px',
+              borderRadius: '4px',
+              background: i === activeIndex ? 'white' : 'rgba(255,255,255,0.4)',
+              border: 'none', cursor: 'pointer', padding: 0,
+              transition: 'all 300ms ease',
+            }}
+            aria-label={`Go to ${IMAGES[i].label}`}
+          />
+        ))}
       </div>
     </section>
   );
