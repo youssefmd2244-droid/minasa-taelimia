@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Image, FileText, FileVideo, FileAudio, Box, Mic,
-  Trash2, Edit3, Plus, Upload, Check, X, Volume2, File, Presentation, Table
+  Image, FileText, FileVideo, Box, Mic,
+  Trash2, Edit3, Plus, Upload, Check, X, Volume2, File, Presentation, Table, Download
 } from 'lucide-react';
 
 type MediaType = 'image' | '3d' | 'icon' | 'gif' | 'video' | 'pdf' | 'excel' | 'word' | 'powerpoint' | 'zip' | 'text' | 'audio_comment' | 'audio_file' | 'graphic_3d';
@@ -11,18 +11,21 @@ interface DisplayItem {
   id: number;
   type: MediaType;
   title: string;
+  /** data-URL preview, used for image-like types (image / gif / icon / graphic_3d) */
   preview?: string;
   content?: string;
+  /** data-URL of the uploaded file itself, for downloadable/non-previewable types */
   url?: string;
+  fileName?: string;
   createdAt: string;
 }
 
-const TYPE_CONFIG: Record<MediaType, { label: string; labelAr: string; icon: React.ReactNode; color: string; accept?: string }> = {
-  image:         { label: 'Image',         labelAr: 'صورة',          icon: <Image size={16} />,        color: '#6EB5FF', accept: 'image/*' },
-  gif:           { label: 'GIF',           labelAr: 'صورة متحركة',   icon: <Image size={16} />,        color: '#E882B4', accept: 'image/gif' },
-  icon:          { label: 'Icon',          labelAr: 'أيقونة',         icon: <Image size={16} />,        color: '#9B8FFF', accept: 'image/svg+xml,image/png' },
+const TYPE_CONFIG: Record<MediaType, { label: string; labelAr: string; icon: React.ReactNode; color: string; accept?: string; isPreviewable?: boolean }> = {
+  image:         { label: 'Image',         labelAr: 'صورة',          icon: <Image size={16} />,        color: '#6EB5FF', accept: 'image/*',              isPreviewable: true },
+  gif:           { label: 'GIF',           labelAr: 'صورة متحركة',   icon: <Image size={16} />,        color: '#E882B4', accept: 'image/gif',            isPreviewable: true },
+  icon:          { label: 'Icon',          labelAr: 'أيقونة',         icon: <Image size={16} />,        color: '#9B8FFF', accept: 'image/svg+xml,image/png,image/x-icon', isPreviewable: true },
   '3d':          { label: '3D Model',      labelAr: 'مجسم 3D',       icon: <Box size={16} />,          color: '#F4845F', accept: '.glb,.gltf,.obj' },
-  graphic_3d:    { label: '3D Graphic',    labelAr: 'جرافيك 3D',     icon: <Box size={16} />,          color: '#FF9B6A', accept: 'image/*' },
+  graphic_3d:    { label: '3D Graphic',    labelAr: 'مجسم Graphics', icon: <Box size={16} />,          color: '#FF9B6A', accept: 'image/*',              isPreviewable: true },
   video:         { label: 'Video',         labelAr: 'فيديو',          icon: <FileVideo size={16} />,    color: '#6BBF7A', accept: 'video/*' },
   pdf:           { label: 'PDF',           labelAr: 'ملف PDF',        icon: <FileText size={16} />,     color: '#F4845F', accept: '.pdf' },
   word:          { label: 'Word',          labelAr: 'ملف Word',       icon: <FileText size={16} />,     color: '#4472C4', accept: '.doc,.docx' },
@@ -34,6 +37,11 @@ const TYPE_CONFIG: Record<MediaType, { label: string; labelAr: string; icon: Rea
   audio_file:    { label: 'Audio File',    labelAr: 'ملف صوتي',      icon: <Volume2 size={16} />,      color: '#F8C8D4', accept: 'audio/*' },
 };
 
+/** أزرار الوصول السريع المطلوبة: GIF، أيقونة، مجسم Graphics (3D) */
+const QUICK_ADD_TYPES: MediaType[] = ['gif', 'icon', 'graphic_3d'];
+
+const STORAGE_KEY = 'eduverse_display_screen_items';
+
 const DEMO_ITEMS: DisplayItem[] = [
   { id: 1, type: 'image',   title: 'صورة الرياضيات',      createdAt: '2026-06-28' },
   { id: 2, type: 'video',   title: 'شرح التفاضل',         createdAt: '2026-06-27' },
@@ -41,12 +49,37 @@ const DEMO_ITEMS: DisplayItem[] = [
   { id: 4, type: 'text',    title: 'ملاحظات المدرس',  content: 'هذا نص توضيحي للمادة', createdAt: '2026-06-25' },
 ];
 
+function loadItems(): DisplayItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore corrupted storage */ }
+  return DEMO_ITEMS;
+}
+
+function saveItems(items: DisplayItem[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    if (navigator.storage?.persist) navigator.storage.persist();
+  } catch { /* storage full / unavailable — ignore */ }
+}
+
+const readFileAsDataURL = (file: File): Promise<string> =>
+  new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result as string);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+
 export default function DisplayScreen() {
-  const [items, setItems] = useState<DisplayItem[]>(DEMO_ITEMS);
+  const [items, setItems] = useState<DisplayItem[]>(loadItems);
   const [showAdd, setShowAdd] = useState(false);
   const [newType, setNewType] = useState<MediaType>('image');
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
+  const [pendingFile, setPendingFile] = useState<{ dataUrl: string; name: string } | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [recording, setRecording] = useState(false);
@@ -54,13 +87,46 @@ export default function DisplayScreen() {
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
 
+  useEffect(() => { saveItems(items); }, [items]);
+
+  const openAddForType = (type: MediaType) => {
+    setNewType(type);
+    setPendingFile(null);
+    setShowAdd(true);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileLoading(true);
+    try {
+      const dataUrl = await readFileAsDataURL(file);
+      setPendingFile({ dataUrl, name: file.name });
+      if (!newTitle.trim()) setNewTitle(file.name.replace(/\.[^./]+$/, ''));
+    } finally {
+      setFileLoading(false);
+    }
+    e.target.value = '';
+  };
+
   const addItem = () => {
     if (!newTitle.trim()) return;
+    const cfg = TYPE_CONFIG[newType];
     setItems((prev) => [{
-      id: Date.now(), type: newType, title: newTitle.trim(),
-      content: newContent.trim() || undefined, createdAt: new Date().toISOString().split('T')[0],
+      id: Date.now(),
+      type: newType,
+      title: newTitle.trim(),
+      content: newContent.trim() || undefined,
+      preview: cfg.isPreviewable ? pendingFile?.dataUrl : undefined,
+      url: !cfg.isPreviewable && newType !== 'text' && newType !== 'audio_comment' ? pendingFile?.dataUrl : undefined,
+      fileName: pendingFile?.name,
+      createdAt: new Date().toISOString().split('T')[0],
     }, ...prev]);
-    setNewTitle(''); setNewContent(''); setShowAdd(false);
+    setNewTitle(''); setNewContent(''); setPendingFile(null); setShowAdd(false);
+  };
+
+  const cancelAdd = () => {
+    setShowAdd(false); setNewTitle(''); setNewContent(''); setPendingFile(null);
   };
 
   const deleteItem = (id: number) => setItems((prev) => prev.filter((i) => i.id !== id));
@@ -95,10 +161,11 @@ export default function DisplayScreen() {
   };
 
   const typeList = Object.entries(TYPE_CONFIG) as [MediaType, typeof TYPE_CONFIG[MediaType]][];
+  const currentCfg = TYPE_CONFIG[newType];
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'white' }}>
           شاشة العرض <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>({items.length} عنصر)</span>
         </h2>
@@ -112,12 +179,28 @@ export default function DisplayScreen() {
             {recording ? 'إيقاف التسجيل' : 'تسجيل صوتي'}
           </button>
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={() => openAddForType(newType)}
             style={{ padding: '8px 16px', borderRadius: '10px', background: '#f97316', border: 'none', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Plus size={14} /> إضافة محتوى
           </button>
         </div>
+      </div>
+
+      {/* Quick-add shortcuts: GIF / Icon / 3D Graphic */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '18px' }}>
+        {QUICK_ADD_TYPES.map((key) => {
+          const cfg = TYPE_CONFIG[key];
+          return (
+            <button
+              key={key}
+              onClick={() => openAddForType(key)}
+              style={{ padding: '9px 16px', borderRadius: '10px', border: `1px solid ${cfg.color}45`, background: `${cfg.color}15`, color: cfg.color, fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
+            >
+              {cfg.icon} إضافة {cfg.labelAr}
+            </button>
+          );
+        })}
       </div>
 
       {/* Add form */}
@@ -133,7 +216,7 @@ export default function DisplayScreen() {
                 {typeList.map(([key, cfg]) => (
                   <button
                     key={key}
-                    onClick={() => setNewType(key)}
+                    onClick={() => { setNewType(key); setPendingFile(null); }}
                     style={{ padding: '6px 14px', borderRadius: '8px', border: `1px solid ${newType === key ? cfg.color : 'rgba(255,255,255,0.1)'}`, background: newType === key ? `${cfg.color}20` : 'transparent', color: newType === key ? cfg.color : 'rgba(255,255,255,0.55)', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 150ms' }}
                   >
                     {cfg.icon} {cfg.labelAr}
@@ -155,10 +238,16 @@ export default function DisplayScreen() {
             {/* File upload for non-text types */}
             {newType !== 'text' && newType !== 'audio_comment' && (
               <div>
-                <input ref={fileRef} type="file" accept={TYPE_CONFIG[newType].accept} style={{ display: 'none' }} />
-                <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '20px', borderRadius: '12px', border: '2px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.5)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <Upload size={16} /> اضغط لرفع الملف ({TYPE_CONFIG[newType].labelAr})
+                <input ref={fileRef} type="file" accept={currentCfg.accept} style={{ display: 'none' }} onChange={handleFileChange} />
+                <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '20px', borderRadius: '12px', border: `2px dashed ${pendingFile ? currentCfg.color : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.03)', color: pendingFile ? currentCfg.color : 'rgba(255,255,255,0.5)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <Upload size={16} />
+                  {fileLoading ? 'جارِ الرفع...' : pendingFile ? `تم اختيار: ${pendingFile.name}` : `اضغط لرفع الملف (${currentCfg.labelAr})`}
                 </button>
+                {pendingFile && currentCfg.isPreviewable && (
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                    <img src={pendingFile.dataUrl} alt="" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }} />
+                  </div>
+                )}
               </div>
             )}
 
@@ -166,7 +255,7 @@ export default function DisplayScreen() {
               <button onClick={addItem} style={{ padding: '10px 24px', borderRadius: '10px', background: '#f97316', border: 'none', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Check size={14} /> إضافة
               </button>
-              <button onClick={() => { setShowAdd(false); setNewTitle(''); setNewContent(''); }} style={{ padding: '10px 20px', borderRadius: '10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>
+              <button onClick={cancelAdd} style={{ padding: '10px 20px', borderRadius: '10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>
                 إلغاء
               </button>
             </div>
@@ -187,6 +276,11 @@ export default function DisplayScreen() {
                     {cfg.icon} {cfg.labelAr}
                   </div>
                   <div style={{ display: 'flex', gap: '6px' }}>
+                    {item.url && !cfg.isPreviewable && (
+                      <a href={item.url} download={item.fileName || item.title} style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Download size={13} />
+                      </a>
+                    )}
                     <button onClick={() => startEdit(item)} style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Edit3 size={13} />
                     </button>
@@ -195,6 +289,13 @@ export default function DisplayScreen() {
                     </button>
                   </div>
                 </div>
+
+                {/* Preview thumbnail (image / gif / icon / 3D graphic) */}
+                {item.preview && (
+                  <div style={{ marginBottom: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
+                    <img src={item.preview} alt={item.title} style={{ width: '100%', maxHeight: '140px', objectFit: 'contain', display: 'block' }} />
+                  </div>
+                )}
 
                 {/* Title */}
                 {editingId === item.id ? (
@@ -211,6 +312,11 @@ export default function DisplayScreen() {
                   </div>
                 ) : (
                   <div style={{ fontSize: '14px', fontWeight: 600, color: 'white', marginBottom: '6px', textAlign: 'right' }}>{item.title}</div>
+                )}
+
+                {/* File name for non-previewable uploads (3D models, docs, etc.) */}
+                {item.fileName && !item.preview && (
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '6px', textAlign: 'right', direction: 'ltr' }}>{item.fileName}</div>
                 )}
 
                 {/* Content preview */}
