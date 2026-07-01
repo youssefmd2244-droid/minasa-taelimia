@@ -4,14 +4,15 @@ import {
   Lock, Settings, BookOpen, FileText, MessageSquare, BarChart3, Trash2, Plus, Edit3, X,
   Check, Eye, EyeOff, Palette, Globe, Save, ArrowLeft, Home, Star, Shield, Power,
   Lightbulb, Bell, Image as ImageIcon, Video, UploadCloud, Type, Mic, MicOff, Download,
-  File, Music, StopCircle, ZoomIn,
+  File, Music, StopCircle, ZoomIn, Monitor,
 } from 'lucide-react';
+import DisplayScreen from './DisplayScreen';
 
 // ─── Auth code for password change only ───
 const REQUIRED_AUTH_CODE = 'Yy2004//';
 const STORAGE_KEY = 'eduverse_admin_data';
 
-type Tab = 'dashboard' | 'settings' | 'sections' | 'content' | 'record' | 'files' | 'comments' | 'analytics' | 'trash';
+type Tab = 'dashboard' | 'settings' | 'sections' | 'content' | 'record' | 'files' | 'comments' | 'analytics' | 'trash' | 'display';
 
 interface Section { id: number; title: string; isVisible: boolean; isDeleted: boolean; displayOrder: number; }
 interface Attachment { url: string; name: string; type: 'image' | 'video' | 'audio'; }
@@ -120,10 +121,10 @@ function ToggleRow({ icon, label, description, checked, onChange, danger }: {
           <p className="text-xs text-white/30 truncate">{description}</p>
         </div>
       </div>
-      <button onClick={() => onChange(!checked)} className="relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ml-3"
+      <button onClick={() => onChange(!checked)} className="relative w-12 h-7 rounded-full transition-colors duration-200 flex-shrink-0 ml-3"
         style={{ background: checked ? (danger ? '#ef4444' : '#6BBF7A') : 'rgba(255,255,255,0.15)' }}>
-        <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200"
-          style={{ transform: checked ? 'translateX(20px)' : 'translateX(2px)' }} />
+        <div className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-200"
+          style={{ transform: checked ? 'translateX(21px)' : 'translateX(2px)' }} />
       </button>
     </div>
   );
@@ -787,6 +788,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
     { id: 'comments', label: 'تعليقات', icon: <MessageSquare size={15} /> },
     { id: 'analytics', label: 'إحصائيات', icon: <BarChart3 size={15} /> },
     { id: 'trash', label: 'محذوفات', icon: <Trash2 size={15} /> },
+    { id: 'display', label: 'شاشة العرض', icon: <Monitor size={15} /> },
     { id: 'settings', label: 'الإعدادات', icon: <Settings size={15} /> },
   ];
 
@@ -882,6 +884,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             {activeTab === 'comments' && <CommentsTab comments={comments} setComments={setComments} />}
             {activeTab === 'analytics' && <AnalyticsTab comments={comments} content={contentItems} records={records} files={files} />}
             {activeTab === 'trash' && <TrashTab sections={sections} setSections={setSections} content={contentItems} setContent={setContentItems} records={records} setRecords={setRecords} files={files} setFiles={setFiles} />}
+            {activeTab === 'display' && <DisplayScreen />}
             {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} />}
 
           </motion.div>
