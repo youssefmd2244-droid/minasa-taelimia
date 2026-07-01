@@ -15,7 +15,6 @@ body {
   color: #ffffff;
   overflow-x: hidden;
   font-family: 'Inter', 'Cairo', sans-serif;
-  /* Mobile safe areas */
   padding-bottom: env(safe-area-inset-bottom);
   -webkit-tap-highlight-color: transparent;
   touch-action: pan-y;
@@ -80,24 +79,18 @@ body {
   transform: translateY(32px);
   transition: opacity 0.6s ease, transform 0.6s ease;
 }
-.reveal.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
+.reveal.visible { opacity: 1; transform: translateY(0); }
 .reveal-left {
   opacity: 0;
   transform: translateX(-32px);
   transition: opacity 0.6s ease, transform 0.6s ease;
 }
-.reveal-left.visible {
-  opacity: 1;
-  transform: translateX(0);
-}
+.reveal-left.visible { opacity: 1; transform: translateX(0); }
 .reveal-delay-1 { transition-delay: 0.1s; }
 .reveal-delay-2 { transition-delay: 0.2s; }
 .reveal-delay-3 { transition-delay: 0.3s; }
 
-/* ===== 3D scroll reveal (lightweight — GPU-accelerated only) ===== */
+/* ===== 3D scroll reveal ===== */
 .reveal-3d {
   opacity: 0;
   transform: perspective(900px) translateY(50px) translateZ(-80px) rotateX(12deg);
@@ -105,10 +98,7 @@ body {
   will-change: transform, opacity;
   backface-visibility: hidden;
 }
-.reveal-3d.visible {
-  opacity: 1;
-  transform: perspective(900px) translateY(0) translateZ(0) rotateX(0deg);
-}
+.reveal-3d.visible { opacity: 1; transform: perspective(900px) translateY(0) translateZ(0) rotateX(0deg); }
 .reveal-3d-left {
   opacity: 0;
   transform: perspective(900px) translateX(-60px) rotateY(18deg) scale(0.94);
@@ -116,10 +106,7 @@ body {
   will-change: transform, opacity;
   backface-visibility: hidden;
 }
-.reveal-3d-left.visible {
-  opacity: 1;
-  transform: perspective(900px) translateX(0) rotateY(0deg) scale(1);
-}
+.reveal-3d-left.visible { opacity: 1; transform: perspective(900px) translateX(0) rotateY(0deg) scale(1); }
 .reveal-3d-right {
   opacity: 0;
   transform: perspective(900px) translateX(60px) rotateY(-18deg) scale(0.94);
@@ -127,11 +114,137 @@ body {
   will-change: transform, opacity;
   backface-visibility: hidden;
 }
-.reveal-3d-right.visible {
-  opacity: 1;
-  transform: perspective(900px) translateX(0) rotateY(0deg) scale(1);
+.reveal-3d-right.visible { opacity: 1; transform: perspective(900px) translateX(0) rotateY(0deg) scale(1); }
+
+/* ===== Circular Gallery 3D scene ===== */
+.gallery-3d-scene {
+  perspective: 1600px;
+  perspective-origin: 50% 50%;
+  transform-style: preserve-3d;
 }
 
+/* ===== Globe mouse-tracking container ===== */
+.globe-wrapper {
+  transition: transform 0.05s linear;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+.globe-wrapper.idle {
+  transition: transform 0.8s cubic-bezier(0.22,1,0.36,1);
+}
+
+/* ===== Admin Dashboard — mobile-first ===== */
+
+/* Tab bar — prevent horizontal overflow, keep pills small */
+.admin-tabs-bar {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.admin-tabs-bar::-webkit-scrollbar { display: none; }
+
+.admin-tab-btn {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 150ms, color 150ms, border-color 150ms;
+  color: rgba(255,255,255,0.4);
+  background: transparent;
+  font-family: 'Cairo', sans-serif;
+}
+.admin-tab-btn.active {
+  background: rgba(255,255,255,0.12);
+  color: white;
+  border-color: rgba(255,255,255,0.15);
+}
+
+/* Cards inside admin */
+.admin-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  transition: border-color 200ms ease;
+}
+.admin-card:hover { border-color: rgba(255,255,255,0.14); }
+
+/* Stat cards grid — 2 columns always on mobile */
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Form inputs shared style */
+.admin-input {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: white;
+  font-size: 14px;
+  font-family: 'Cairo', sans-serif;
+  outline: none;
+  transition: border-color 150ms;
+  box-sizing: border-box;
+}
+.admin-input:focus { border-color: rgba(255,255,255,0.25); }
+.admin-input::placeholder { color: rgba(255,255,255,0.25); }
+
+/* Touch-friendly minimum tap target */
+.admin-icon-btn {
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  transition: background 150ms;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+}
+.admin-icon-btn:active { background: rgba(255,255,255,0.12); }
+
+/* Password gate modal */
+.admin-gate-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(5,5,16,0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+}
+.admin-gate-card {
+  width: 100%;
+  max-width: 340px;
+  padding: 36px 28px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  text-align: center;
+}
+
+/* ===== Misc helpers ===== */
 .grain-overlay {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
   background-size: 200px 200px; background-repeat: repeat; opacity: 0.4;
@@ -141,18 +254,6 @@ body {
 .hover-scale { transition: transform 150ms ease, background-color 150ms ease; }
 .hover-scale:hover { transform: scale(1.08); }
 
-/* Admin card */
-.admin-card {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  transition: border-color 200ms ease;
-}
-.admin-card:hover {
-  border-color: rgba(255,255,255,0.14);
-}
-
-/* Settings gear spin */
 @keyframes gearSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .gear-spin { animation: gearSpin 6s linear infinite; }
 .gear-spin:hover { animation-duration: 1s; }
