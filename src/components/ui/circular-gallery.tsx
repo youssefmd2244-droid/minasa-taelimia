@@ -47,6 +47,8 @@ const CircularGallery = React.forwardRef<HTMLDivElement, CircularGalleryProps>(
       return () => io.disconnect();
     }, []);
 
+    const lastScrollYRef = useRef<number | null>(null);
+
     useEffect(() => {
       const handleScroll = () => {
         if (!visibleRef.current) return; // skip all work while off-screen
@@ -56,9 +58,13 @@ const CircularGallery = React.forwardRef<HTMLDivElement, CircularGalleryProps>(
         // scroll event (mobile browsers can fire dozens per frame).
         if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
         scrollRafRef.current = requestAnimationFrame(() => {
-          const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
-          const scrollProgress = scrollableHeight > 0 ? window.scrollY / scrollableHeight : 0;
-          setRotation(scrollProgress * 360);
+          // Nudge rotation by how far the page has scrolled since the last
+          // frame — a gentle "scroll to spin" feel that doesn't depend on
+          // total page length or require the section to be pinned/sticky.
+          if (lastScrollYRef.current === null) lastScrollYRef.current = window.scrollY;
+          const delta = window.scrollY - lastScrollYRef.current;
+          lastScrollYRef.current = window.scrollY;
+          setRotation((prev) => prev + delta * 0.15);
         });
         scrollTimeoutRef.current = setTimeout(() => setIsScrolling(false), 150);
       };
