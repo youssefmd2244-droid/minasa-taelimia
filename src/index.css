@@ -8,8 +8,8 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; max-width: 100%; }
-html, body { width: 100%; max-width: 100vw; overflow-x: hidden; overscroll-behavior-y: none; }
-html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; height: 100%; }
+html, body { width: 100%; max-width: 100vw; overflow-x: hidden; }
+html { scroll-behavior: auto; -webkit-font-smoothing: antialiased; height: 100%; }
 body {
   background: #0a0a0a;
   color: #ffffff;
@@ -17,7 +17,6 @@ body {
   font-family: 'Inter', 'Cairo', sans-serif;
   padding-bottom: env(safe-area-inset-bottom);
   -webkit-tap-highlight-color: transparent;
-  touch-action: pan-y;
 }
 
 /* ===== Mobile App Layout ===== */
