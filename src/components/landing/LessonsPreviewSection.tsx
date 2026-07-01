@@ -9,9 +9,11 @@ import LessonList from './LessonList';
 export default function LessonsPreviewSection() {
   return (
     <section
+      id="lessons"
       style={{
         background: '#0a0a14',
         padding: '80px 24px',
+        scrollMarginTop: '80px',
       }}
     >
       <div style={{ maxWidth: '720px', margin: '0 auto' }}>
