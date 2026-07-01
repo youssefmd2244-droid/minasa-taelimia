@@ -21,23 +21,58 @@ const CircularGallery = React.forwardRef<HTMLDivElement, CircularGalleryProps>(
     const [isScrolling, setIsScrolling] = useState(false);
     const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const animationFrameRef = useRef<number | null>(null);
+    const scrollRafRef = useRef<number | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    // Pauses the rAF/scroll work entirely while the gallery is off-screen —
+    // without this the auto-rotate loop below updates React state ~60x/sec
+    // forever, even miles away from the viewport, which is a major cause of
+    // main-thread jank (sluggish scrolling, slow app feel) on mobile.
+    const visibleRef = useRef(false);
+
+    // Merge the internally-needed ref with any ref forwarded by the parent.
+    const setRefs = (node: HTMLDivElement | null) => {
+      containerRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    };
+
+    useEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const io = new IntersectionObserver(
+        ([entry]) => { visibleRef.current = entry.isIntersecting; },
+        { threshold: 0.01 }
+      );
+      io.observe(el);
+      return () => io.disconnect();
+    }, []);
 
     useEffect(() => {
       const handleScroll = () => {
+        if (!visibleRef.current) return; // skip all work while off-screen
         setIsScrolling(true);
         if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-        const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
-        const scrollProgress = scrollableHeight > 0 ? window.scrollY / scrollableHeight : 0;
-        setRotation(scrollProgress * 360);
+        // rAF-throttle: only recompute once per paint instead of once per
+        // scroll event (mobile browsers can fire dozens per frame).
+        if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = requestAnimationFrame(() => {
+          const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
+          const scrollProgress = scrollableHeight > 0 ? window.scrollY / scrollableHeight : 0;
+          setRotation(scrollProgress * 360);
+        });
         scrollTimeoutRef.current = setTimeout(() => setIsScrolling(false), 150);
       };
       window.addEventListener('scroll', handleScroll, { passive: true });
-      return () => { window.removeEventListener('scroll', handleScroll); if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current); };
+      return () => {
+        window.removeEventListener('scroll', handleScroll);
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+      };
     }, []);
 
     useEffect(() => {
       const autoRotate = () => {
-        if (!isScrolling) setRotation(prev => prev + autoRotateSpeed);
+        if (!isScrolling && visibleRef.current) setRotation(prev => prev + autoRotateSpeed);
         animationFrameRef.current = requestAnimationFrame(autoRotate);
       };
       animationFrameRef.current = requestAnimationFrame(autoRotate);
@@ -48,7 +83,7 @@ const CircularGallery = React.forwardRef<HTMLDivElement, CircularGalleryProps>(
 
     return (
       <div
-        ref={ref}
+        ref={setRefs}
         role="region"
         aria-label="Educational Courses Gallery"
         className={cn('relative w-full h-full flex items-center justify-center', className)}
