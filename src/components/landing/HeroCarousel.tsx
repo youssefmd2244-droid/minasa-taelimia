@@ -84,26 +84,34 @@ export default function HeroCarousel() {
   const right = (activeIndex + 1) % 4;
 
   const getRoleStyle = (index: number): React.CSSProperties => {
-    const transition =
-      'transform 650ms cubic-bezier(0.4,0,0.2,1), filter 650ms cubic-bezier(0.4,0,0.2,1), opacity 650ms cubic-bezier(0.4,0,0.2,1), left 650ms cubic-bezier(0.4,0,0.2,1), bottom 650ms cubic-bezier(0.4,0,0.2,1), height 650ms cubic-bezier(0.4,0,0.2,1)';
+    // On mobile, drop `filter` from the transition list and willChange —
+    // animating CSS filter (blur) is compositor/GPU heavy, and on weaker
+    // Android GPUs it can starve the main thread long enough that touch
+    // scroll input stops being processed in real time (taps still fire
+    // fine since those don't need continuous frames — this is exactly
+    // the "swipe does nothing, tap works" pattern). Desktop keeps the
+    // full effect since it's cheap there.
+    const transition = isMobile
+      ? 'transform 650ms cubic-bezier(0.4,0,0.2,1), opacity 650ms cubic-bezier(0.4,0,0.2,1), left 650ms cubic-bezier(0.4,0,0.2,1), bottom 650ms cubic-bezier(0.4,0,0.2,1), height 650ms cubic-bezier(0.4,0,0.2,1)'
+      : 'transform 650ms cubic-bezier(0.4,0,0.2,1), filter 650ms cubic-bezier(0.4,0,0.2,1), opacity 650ms cubic-bezier(0.4,0,0.2,1), left 650ms cubic-bezier(0.4,0,0.2,1), bottom 650ms cubic-bezier(0.4,0,0.2,1), height 650ms cubic-bezier(0.4,0,0.2,1)';
     const base: React.CSSProperties = {
       position: 'absolute',
       aspectRatio: '0.6 / 1',
       transition,
-      willChange: 'transform, filter, opacity',
+      willChange: isMobile ? 'transform, opacity' : 'transform, filter, opacity',
     };
 
     if (index === center) {
-      return { ...base, transform: `translateX(-50%) scale(${isMobile ? 1.25 : 1.68})`, filter: 'blur(0px)', opacity: 1, zIndex: 20, left: '50%', height: isMobile ? '60%' : '92%', bottom: isMobile ? '22%' : '0' };
+      return { ...base, transform: `translateX(-50%) scale(${isMobile ? 1.25 : 1.68})`, filter: isMobile ? undefined : 'blur(0px)', opacity: 1, zIndex: 20, left: '50%', height: isMobile ? '60%' : '92%', bottom: isMobile ? '22%' : '0' };
     }
     if (index === left) {
-      return { ...base, transform: 'translateX(-50%) scale(1)', filter: 'blur(2px)', opacity: 0.85, zIndex: 10, left: isMobile ? '20%' : '30%', height: isMobile ? '16%' : '28%', bottom: isMobile ? '32%' : '12%' };
+      return { ...base, transform: 'translateX(-50%) scale(1)', filter: isMobile ? undefined : 'blur(2px)', opacity: 0.85, zIndex: 10, left: isMobile ? '20%' : '30%', height: isMobile ? '16%' : '28%', bottom: isMobile ? '32%' : '12%' };
     }
     if (index === right) {
-      return { ...base, transform: 'translateX(-50%) scale(1)', filter: 'blur(2px)', opacity: 0.85, zIndex: 10, left: isMobile ? '80%' : '70%', height: isMobile ? '16%' : '28%', bottom: isMobile ? '32%' : '12%' };
+      return { ...base, transform: 'translateX(-50%) scale(1)', filter: isMobile ? undefined : 'blur(2px)', opacity: 0.85, zIndex: 10, left: isMobile ? '80%' : '70%', height: isMobile ? '16%' : '28%', bottom: isMobile ? '32%' : '12%' };
     }
     // back
-    return { ...base, transform: 'translateX(-50%) scale(1)', filter: 'blur(4px)', opacity: 1, zIndex: 5, left: '50%', height: isMobile ? '13%' : '22%', bottom: isMobile ? '32%' : '12%' };
+    return { ...base, transform: 'translateX(-50%) scale(1)', filter: isMobile ? undefined : 'blur(4px)', opacity: 1, zIndex: 5, left: '50%', height: isMobile ? '13%' : '22%', bottom: isMobile ? '32%' : '12%' };
   };
 
   return (
@@ -121,7 +129,11 @@ export default function HeroCarousel() {
         ref={constraintsRef}
         style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', touchAction: 'pan-y' }}
       >
-        {/* Grain Overlay */}
+        {/* Grain Overlay — skipped on mobile: feTurbulence tiled across the
+            full viewport is expensive to rasterize on weaker Android GPUs
+            and was a likely contributor to the frozen-touch-scroll issue.
+            Purely decorative, so no loss of functionality by dropping it. */}
+        {!isMobile && (
         <div
           style={{
             position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 50,
@@ -129,6 +141,7 @@ export default function HeroCarousel() {
             backgroundRepeat: 'repeat', opacity: 0.4,
           }}
         />
+        )}
 
         {/* Giant Ghost Text */}
         <div
@@ -222,7 +235,7 @@ export default function HeroCarousel() {
         {/* Carousel Items (zIndex 3 — below drag layer but visually on top of text) */}
         <div style={{ position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none' }}>
           {IMAGES.map((item, index) => (
-            <div key={index} ref={index === center ? centerItemRef : undefined} style={{ ...getRoleStyle(index), transformStyle: 'preserve-3d' }}>
+            <div key={index} ref={index === center ? centerItemRef : undefined} style={{ ...getRoleStyle(index), transformStyle: isMobile ? undefined : 'preserve-3d' }}>
               <img
                 src={item.src}
                 alt={item.label}
