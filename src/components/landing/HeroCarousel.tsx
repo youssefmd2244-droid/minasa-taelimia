@@ -140,7 +140,15 @@ export default function HeroCarousel() {
         {/* ── Draggable carousel container ──
             Invisible full-viewport layer that captures drag/swipe gestures.
             zIndex sits between the ghost text (2) and the book items (3),
-            so items are still visible but gestures are captured here. */}
+            so items are still visible but gestures are captured here.
+
+            IMPORTANT: only rendered on non-mobile (mouse) — on touch
+            devices, framer-motion's JS-based drag recognition can swallow
+            vertical touch input inside some Android WebViews even with
+            touchAction:'pan-y', trapping the user on this section unable
+            to scroll down. On mobile, navigation is via the arrow buttons
+            and dots below instead (already present, no functionality lost). */}
+        {!isMobile && (
         <motion.div
           drag="x"
           dragConstraints={constraintsRef}
@@ -190,6 +198,7 @@ export default function HeroCarousel() {
           }}
           whileDrag={{ cursor: 'grabbing' }}
         />
+        )}
 
         {/* Carousel Items (zIndex 3 — below drag layer but visually on top of text) */}
         <div style={{ position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none' }}>
@@ -209,7 +218,8 @@ export default function HeroCarousel() {
           ))}
         </div>
 
-        {/* ── Swipe hint (shown briefly on first load) ── */}
+        {/* ── Swipe hint (shown briefly on first load, desktop only — see note above) ── */}
+        {!isMobile && (
         <motion.div
           initial={{ opacity: 0.75 }}
           animate={{ opacity: 0 }}
@@ -237,6 +247,7 @@ export default function HeroCarousel() {
             →
           </motion.span>
         </motion.div>
+        )}
 
         {/* Bottom-left Text + Nav Buttons (zIndex 60 — above drag layer) */}
         <div
