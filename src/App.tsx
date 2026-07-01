@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Settings } from 'lucide-react';
+import { Settings, Search as SearchIcon } from 'lucide-react';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
+import SearchOverlay from './components/SearchOverlay';
 import HeroCarousel from './components/landing/HeroCarousel';
 import AcademyShowcase from './components/landing/AcademyShowcase';
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -11,6 +12,7 @@ import DeveloperCredit from './components/landing/DeveloperCredit';
 import StudentComments from './components/landing/StudentComments';
 import GlobalPresence from './components/landing/GlobalPresence';
 import CoursesGallerySection from './components/landing/CoursesGallerySection';
+import LessonsPreviewSection from './components/landing/LessonsPreviewSection';
 import { useScrollReveal } from './hooks/useScrollReveal';
 
 // ===== Password gate inline =====
@@ -48,6 +50,7 @@ function AppContent() {
   const [showIntro, setShowIntro] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showPasswordGate, setShowPasswordGate] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
   const [adminPassword, setAdminPassword] = useState(ADMIN_PASS);
   const gearRef = useRef<HTMLButtonElement>(null);
@@ -75,6 +78,18 @@ function AppContent() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Keyboard shortcut: Ctrl+K opens search (common convention, also handy on desktop)
+  useEffect(() => {
+    const handleSearchShortcut = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setShowSearch(true);
+      }
+    };
+    window.addEventListener('keydown', handleSearchShortcut);
+    return () => window.removeEventListener('keydown', handleSearchShortcut);
   }, []);
 
   // Scroll tracking
@@ -126,6 +141,9 @@ function AppContent() {
         {showPasswordGate && <PasswordGate onEnter={enterAdmin} />}
       </AnimatePresence>
 
+      {/* Real, functional search — reads the same live sections/content data as the rest of the app */}
+      <SearchOverlay open={showSearch} onClose={() => setShowSearch(false)} />
+
       {/* Intro Splash — renders immediately */}
       <AnimatePresence>
         {showIntro && <IntroSplash onFinish={() => setShowIntro(false)} />}
@@ -156,6 +174,13 @@ function AppContent() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
+              onClick={() => setShowSearch(true)}
+              title={t('search_open')}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <SearchIcon size={16} />
+            </button>
+            <button
               ref={gearRef}
               onClick={() => setShowPasswordGate(true)}
               title={t('admin_settings')}
@@ -180,6 +205,10 @@ function AppContent() {
 
         {/* معرض الكورسات الدائري ثلاثي الأبعاد */}
         <CoursesGallerySection />
+
+        {/* دروس مختارة — الميزة الفعلية لتنزيل الملفات (تظهر فقط للعناصر
+            التي يفعّلها المعلّم من لوحة الإدارة، عبر useContent الحقيقي) */}
+        <LessonsPreviewSection />
 
         {/* الانتشار الجغرافي مع الكرة الأرضية */}
         <GlobalPresence />
