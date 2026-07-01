@@ -3,7 +3,7 @@ import { CircularGallery, EDUCATIONAL_COURSES } from '../ui/circular-gallery';
 
 export default function CoursesGallerySection() {
   return (
-    <section style={{ height: '350vh', position: 'relative' }}>
+    <section style={{ height: '160vh', position: 'relative' }}>
       {/* Sticky container */}
       <div
         className="sticky top-0 w-full flex flex-col items-center justify-center overflow-hidden"
