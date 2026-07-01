@@ -146,6 +146,7 @@ export default function HeroCarousel() {
           dragConstraints={constraintsRef}
           dragElastic={0.15}
           dragMomentum={false}
+          dragDirectionLock
           onDragStart={() => setIsDragging(true)}
           onDragEnd={(_e, info) => {
             setIsDragging(false);
@@ -183,6 +184,9 @@ export default function HeroCarousel() {
             cursor: isDragging ? 'grabbing' : 'grab',
             // Transparent — only used for gesture capture
             background: 'transparent',
+            // Let the browser/WebView handle vertical scrolling natively;
+            // only horizontal panning is intercepted for the swipe gesture.
+            touchAction: 'pan-y',
           }}
           whileDrag={{ cursor: 'grabbing' }}
         />
