@@ -3,7 +3,7 @@
  * with automatic graceful fallback to in-memory demo data when
  * Supabase isn't configured (see lib/supabaseClient.ts).
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured, type SectionRow } from '../lib/supabaseClient';
 
 const DEMO_SECTIONS: SectionRow[] = [
@@ -17,6 +17,11 @@ export function useSections() {
   const [sections, setSections] = useState<SectionRow[]>(isSupabaseConfigured ? [] : DEMO_SECTIONS);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
+  // اسم فريد لكل نسخة من الـ hook — لو أكتر من مكوّن استخدم useSections()
+  // في نفس الوقت (مثلاً SearchOverlay + مكوّن تاني)، كل واحد لازم يبقى
+  // ليه قناة Realtime منفصلة، وإلا Supabase بيرمي:
+  // "cannot add postgres_changes callbacks ... after subscribe()"
+  const channelName = useRef(`sections-changes-${Math.random().toString(36).slice(2)}`).current;
 
   const refresh = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -40,7 +45,7 @@ export function useSections() {
     if (!isSupabaseConfigured || !supabase) return;
     // Live updates: any admin edit reflects instantly for every open tab/device.
     const channel = supabase
-      .channel('sections-changes')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sections' }, () => {
         refresh();
       })
@@ -48,7 +53,7 @@ export function useSections() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refresh]);
+  }, [refresh, channelName]);
 
   const createSection = useCallback(async (title: string) => {
     if (!isSupabaseConfigured || !supabase) {
