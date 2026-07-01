@@ -28,6 +28,15 @@ const CircularGallery = React.forwardRef<HTMLDivElement, CircularGalleryProps>(
     // forever, even miles away from the viewport, which is a major cause of
     // main-thread jank (sluggish scrolling, slow app feel) on mobile.
     const visibleRef = useRef(false);
+    // backdrop-filter: blur() is compositor-heavy on Android WebViews —
+    // with 8 absolutely-positioned, 3D-transformed cards re-rendering every
+    // scroll frame, it's the actual cause of the "swipe freezes then jumps"
+    // feel on real phones (main thread starves waiting on GPU blur passes).
+    // Skip it entirely on coarse-pointer (touch) devices; keep the nicer
+    // glass effect on desktop where it's cheap.
+    const [lowFxMode] = useState(
+      () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches
+    );
 
     // Merge the internally-needed ref with any ref forwarded by the parent.
     const setRefs = (node: HTMLDivElement | null) => {
@@ -50,6 +59,7 @@ const CircularGallery = React.forwardRef<HTMLDivElement, CircularGalleryProps>(
     const lastScrollYRef = useRef<number | null>(null);
 
     useEffect(() => {
+      if (lowFxMode) return; // skip scroll-linked re-renders on touch; auto-rotate below is enough
       const handleScroll = () => {
         if (!visibleRef.current) return; // skip all work while off-screen
         setIsScrolling(true);
@@ -77,13 +87,21 @@ const CircularGallery = React.forwardRef<HTMLDivElement, CircularGalleryProps>(
     }, []);
 
     useEffect(() => {
+      let frameCount = 0;
       const autoRotate = () => {
-        if (!isScrolling && visibleRef.current) setRotation(prev => prev + autoRotateSpeed);
+        frameCount++;
+        // On touch devices, only re-render every 3rd frame (~20fps) — still
+        // reads as smooth continuous rotation but leaves far more main-thread
+        // headroom free for the browser to handle the user's scroll gesture.
+        const shouldUpdate = !lowFxMode || frameCount % 3 === 0;
+        if (!isScrolling && visibleRef.current && shouldUpdate) {
+          setRotation(prev => prev + autoRotateSpeed * (lowFxMode ? 3 : 1));
+        }
         animationFrameRef.current = requestAnimationFrame(autoRotate);
       };
       animationFrameRef.current = requestAnimationFrame(autoRotate);
       return () => { if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current); };
-    }, [isScrolling, autoRotateSpeed]);
+    }, [isScrolling, autoRotateSpeed, lowFxMode]);
 
     const anglePerItem = 360 / items.length;
 
@@ -128,9 +146,9 @@ const CircularGallery = React.forwardRef<HTMLDivElement, CircularGalleryProps>(
                   className="relative w-full h-full rounded-2xl overflow-hidden group"
                   style={{
                     border: '1px solid rgba(255,255,255,0.12)',
-                    background: 'rgba(15,15,30,0.7)',
-                    backdropFilter: 'blur(12px)',
-                    boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                    background: lowFxMode ? 'rgba(15,15,30,0.92)' : 'rgba(15,15,30,0.7)',
+                    backdropFilter: lowFxMode ? undefined : 'blur(12px)',
+                    boxShadow: lowFxMode ? '0 8px 20px rgba(0,0,0,0.4)' : '0 20px 60px rgba(0,0,0,0.5)',
                   }}
                 >
                   <img
