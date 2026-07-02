@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured, type ContentRow } from '../lib/supabaseClient';
+import { getBridgedContent, hasAdminData, subscribeAdminData } from '../lib/adminBridge';
 
 const DEMO_CONTENT: ContentRow[] = [
   {
@@ -33,8 +34,14 @@ const DEMO_CONTENT: ContentRow[] = [
   },
 ];
 
+/** لو مفيش Supabase متصل: استخدم بيانات لوحة الإدارة الحقيقية (لو موجودة). */
+function getInitialContent(sectionId?: number): ContentRow[] {
+  const base = isSupabaseConfigured ? [] : hasAdminData() ? getBridgedContent() : DEMO_CONTENT;
+  return sectionId === undefined ? base : base.filter((c) => c.section_id === sectionId);
+}
+
 export function useContent(sectionId?: number) {
-  const [items, setItems] = useState<ContentRow[]>(isSupabaseConfigured ? [] : DEMO_CONTENT);
+  const [items, setItems] = useState<ContentRow[]>(() => getInitialContent(sectionId));
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   // نفس مبدأ useSections — اسم فريد لكل نسخة عشان لا يحصل تصادم لما
@@ -58,7 +65,13 @@ export function useContent(sectionId?: number) {
 
   useEffect(() => {
     refresh();
-    if (!isSupabaseConfigured || !supabase) return;
+    if (!isSupabaseConfigured || !supabase) {
+      // نفس مبدأ useSections: أي تغيير من لوحة الإدارة (إضافة/تعديل/مسح
+      // قسم، صورة، فيديو، ملف، أو تسجيل صوتي) ينعكس هنا فوراً بدون Supabase.
+      return subscribeAdminData(() => {
+        setItems(getInitialContent(sectionId));
+      });
+    }
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'content' }, () => refresh())
@@ -66,7 +79,7 @@ export function useContent(sectionId?: number) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refresh, channelName]);
+  }, [refresh, channelName, sectionId]);
 
   /** Toggles whether a single content item is allowed to show a download button. Default is always false. */
   const setAllowDownload = useCallback(async (id: number, allow: boolean) => {
