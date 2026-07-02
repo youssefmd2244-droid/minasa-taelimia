@@ -1,22 +1,32 @@
 /**
  * adminBridge — يوصّل بيانات لوحة الإدارة (localStorage: eduverse_admin_data)
- * بالواجهة اللي بيشوفها الطالب (useSections / useContent).
+ * بالواجهة اللي بيشوفها الطالب (useSections / useContent) — وكمان بيزامنها
+ * فعليًا على Supabase عشان تظهر لكل المستخدمين على أي جهاز.
  * ─────────────────────────────────────────────────────────────────
  * قبل كده: لوحة الإدارة كانت بتحفظ كل حاجة في مخزن محلي منفصل تماماً
  * عن الـ hooks اللي بتقرأ منها الصفحة الرئيسية (useSections/useContent
- * كانوا بيرجعوا بيانات ثابتة demo لو Supabase مش متصل). فكانت أي إضافة
- * (قسم / صورة / فيديو / ملف) بتتحفظ عند الأدمن بس، وميظهرش أي أثر ليها
- * "برّه" عند الطالب.
+ * كانوا بيرجعوا بيانات ثابتة demo لو Supabase مش متصل)، ومفيش أي مسار
+ * كتابة حقيقي على Supabase. فكانت أي إضافة (قسم / صورة / فيديو / ملف)
+ * بتتحفظ عند الأدمن بس، وميظهرش أي أثر ليها "برّه" عند باقي المستخدمين.
  *
- * الحل: الملف ده بيحوّل بيانات لوحة الإدارة لنفس شكل SectionRow/ContentRow
- * اللي الـ hooks بتفهمه، وبيبعت حدث فوري (CustomEvent) كل ما الأدمن يغيّر
- * حاجة عشان أي مكوّن مفتوح (نفس التبويب) يعمل refresh على طول من غير
- * إعادة تحميل الصفحة. لو مفيش Supabase متصل، ده بقى مصدر الحقيقة الحقيقي
- * بدل الداتا الثابتة القديمة.
+ * الحل الحالي:
+ *   1. الملف ده بيحوّل بيانات لوحة الإدارة لنفس شكل SectionRow/ContentRow
+ *      اللي الـ hooks بتفهمه، وبيبعت حدث فوري (CustomEvent) كل ما البيانات
+ *      تتغيّر عشان أي مكوّن مفتوح يعمل refresh على طول من غير إعادة تحميل.
+ *   2. لو Supabase متصل، كل نسخة من البيانات بتتخزن كمان في صف مشترك
+ *      واحد (جدول app_data، id=1) — ده مصدر الحقيقة المشترك بين كل
+ *      الأجهزة والمستخدمين. أي جهاز (حتى لو مفتحش لوحة الإدارة قبل
+ *      كده) بيسحب نفس الصف أول ما يفتح الموقع، وبيسمع لأي تغيير فيه
+ *      فورًا عبر Supabase Realtime.
+ *   3. لو Supabase مش متصل، بيفضل localStorage هو مصدر الحقيقة الوحيد
+ *      (سلوك وضع العرض التوضيحي القديم، بدون تغيير).
  */
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 import type { ContentRow, ContentType, SectionRow } from './supabaseClient';
 
 const ADMIN_STORAGE_KEY = 'eduverse_admin_data';
+const APP_DATA_TABLE = 'app_data';
+const APP_DATA_ROW_ID = 1;
 export const ADMIN_DATA_EVENT = 'eduverse-admin-data-changed';
 
 /** Fired by AdminDashboard.tsx every time it persists a change. */
@@ -77,8 +87,18 @@ function readAdminData(): RawAdminData | null {
   }
 }
 
+/** يكتب نسخة جديدة من بيانات لوحة الإدارة في الكاش المحلي بدون إطلاق حدث. */
+function writeAdminDataCache(data: RawAdminData): void {
+  try {
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // localStorage ممتلئ أو ممنوع في وضع خاص — نكمل بدون crash
+  }
+}
+
 /**
- * true إذا كانت لوحة الإدارة اتفتحت وحفظت أي بيانات على الجهاز ده من قبل.
+ * true إذا كانت لوحة الإدارة اتفتحت وحفظت أي بيانات على الجهاز ده من قبل،
+ * أو لو تم سحب نسخة حديثة من Supabase وتخزينها محليًا كـ cache.
  */
 export function hasAdminData(): boolean {
   return readAdminData() !== null;
@@ -86,16 +106,78 @@ export function hasAdminData(): boolean {
 
 /**
  * لوحة الإدارة (AdminDashboard.tsx) بتحفظ كل حاجة محلياً على الجهاز
- * (localStorage) ومش بتكتب في جداول Supabase أصلاً — حتى لو .env.local
- * فيه بيانات اتصال حقيقية. فلو الأدمن استخدم اللوحة وحفظ أي حاجة، لازم
- * الصفحة الرئيسية تاخد البيانات من نفس المكان ده، مش من Supabase (اللي
- * هيكون فاضي أو غير متزامن). فقط لو مفيش أي بيانات محلية محفوظة أصلاً
- * (يعني الأدمن لسه ما فتحش اللوحة على الجهاز ده) بنرجع لـ Supabase (لو
- * متصل) أو للبيانات التجريبية الثابتة.
+ * (localStorage) كـ cache فوري، وبتتزامن كمان مع صف مشترك على Supabase
+ * (app_data، انظر أسفل) لما يكون متصل. فلو في أي بيانات محلية (سواء من
+ * تعديل الأدمن نفسه أو من سحب تلقائي من Supabase) لازم الصفحة الرئيسية
+ * تاخد البيانات من نفس المكان ده. فقط لو مفيش أي بيانات محلية أصلاً
+ * (أول تحميل قبل ما تكتمل عملية السحب من Supabase) بنرجع لبيانات
+ * Supabase الخام (لو متصل) أو للبيانات التجريبية الثابتة.
  */
 export function shouldUseAdminBridge(): boolean {
   return hasAdminData();
 }
+
+// ── Remote sync عبر Supabase (صف مشترك واحد id=1 في جدول app_data) ───
+// ده اللي بيخلي أي إضافة/تعديل/مسح من لوحة الإدارة يظهر لكل المستخدمين
+// على أي جهاز، مش بس على جهاز الأدمن. راجع migration 0003_admin_sync.sql.
+
+/** يسحب أحدث نسخة من بيانات لوحة الإدارة من Supabase، أو null لو مش متصل/مفيش بيانات. */
+export async function pullRemoteAppData(): Promise<RawAdminData | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    const { data: row, error } = await supabase
+      .from(APP_DATA_TABLE)
+      .select('data')
+      .eq('id', APP_DATA_ROW_ID)
+      .maybeSingle();
+    if (error || !row || !row.data) return null;
+    return row.data as RawAdminData;
+  } catch {
+    return null;
+  }
+}
+
+let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** يرفع نسخة جديدة من بيانات لوحة الإدارة على Supabase (مع debounce بسيط لتقليل الطلبات). */
+export function pushAppData(data: RawAdminData): void {
+  if (!isSupabaseConfigured || !supabase) return;
+  if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
+  pushDebounceTimer = setTimeout(() => {
+    void supabase!.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data });
+  }, 500);
+}
+
+let bridgeSyncStarted = false;
+
+/**
+ * يبدأ مزامنة ثنائية الاتجاه مع Supabase: يسحب أحدث نسخة فور فتح
+ * الموقع (حتى لو الجهاز ده مفتحش لوحة الإدارة قبل كده أبدًا)، وبعدين
+ * يسمع لأي تغيير جديد فورًا عبر Realtime. بيتنفذ مرة واحدة بس مهما
+ * اتعمل import للملف ده من أكتر من مكان.
+ */
+export function initAdminBridgeSync(): void {
+  if (bridgeSyncStarted || typeof window === 'undefined') return;
+  bridgeSyncStarted = true;
+  if (!isSupabaseConfigured || !supabase) return;
+
+  const applyRemote = (remote: RawAdminData | null) => {
+    if (!remote) return;
+    writeAdminDataCache(remote);
+    notifyAdminDataChanged();
+  };
+
+  pullRemoteAppData().then(applyRemote);
+
+  supabase
+    .channel('app-data-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: APP_DATA_TABLE }, () => {
+      pullRemoteAppData().then(applyRemote);
+    })
+    .subscribe();
+}
+
+initAdminBridgeSync();
 
 const FILE_TYPE_MAP: Record<RawFileItem['fileType'], ContentType> = {
   pdf: 'pdf', word: 'word', excel: 'excel', ppt: 'powerpoint', zip: 'zip',
