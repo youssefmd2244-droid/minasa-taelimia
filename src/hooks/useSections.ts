@@ -58,16 +58,16 @@ export function useSections() {
 
   useEffect(() => {
     refresh();
-    if (shouldUseAdminBridge() || !isSupabaseConfigured || !supabase) {
-      // وضع لوحة الإدارة المحلية (الأولوية) أو بدون Supabase أصلاً: نسمع
-      // لأي تغيير يحفظه الأدمن (نفس التاب أو تاب تاني) ونحدّث القائمة
-      // فوراً — ده اللي كان ناقص وبيمنع ظهور الأقسام المضافة حديثاً عند
-      // الطالب، حتى لو .env.local فيه بيانات Supabase حقيقية.
-      return subscribeAdminData(() => {
-        setSections(shouldUseAdminBridge() ? getBridgedSections() : DEMO_SECTIONS);
-      });
-    }
-    // Live updates: any admin edit reflects instantly for every open tab/device.
+    // نسمع دايماً لأي تغيير يوصل عن طريق adminBridge — سواء من نفس
+    // الجهاز (الأدمن بيعدّل) أو من سحب تلقائي لأحدث نسخة من Supabase
+    // (app_data، انظر lib/adminBridge.ts). ده بيضمن إن أي زائر جديد،
+    // حتى لو لسه ما فتحش لوحة الإدارة على جهازه أبداً، ياخد آخر تحديث
+    // فور ما يوصل من السيرفر بدون أي إعادة تحميل للصفحة.
+    const unsubscribeBridge = subscribeAdminData(() => {
+      setSections(shouldUseAdminBridge() ? getBridgedSections() : DEMO_SECTIONS);
+    });
+    if (!isSupabaseConfigured || !supabase) return unsubscribeBridge;
+    // Live updates: أي تغيير مباشر على جدول sections (لو استُخدم مستقبلاً) يوصل فوراً كمان.
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sections' }, () => {
@@ -75,6 +75,7 @@ export function useSections() {
       })
       .subscribe();
     return () => {
+      unsubscribeBridge();
       supabase.removeChannel(channel);
     };
   }, [refresh, channelName]);
