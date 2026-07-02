@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured, type SectionRow } from '../lib/supabaseClient';
+import { getBridgedSections, hasAdminData, subscribeAdminData } from '../lib/adminBridge';
 
 const DEMO_SECTIONS: SectionRow[] = [
   { id: 1, title: 'الرياضيات — المستوى الأول', is_visible: true, is_deleted: false, deleted_at: null, display_order: 1 },
@@ -13,8 +14,18 @@ const DEMO_SECTIONS: SectionRow[] = [
   { id: 4, title: 'الفنون والتصميم — المستوى الأول', is_visible: false, is_deleted: false, deleted_at: null, display_order: 4 },
 ];
 
+/**
+ * لو مفيش Supabase متصل: بنستخدم بيانات لوحة الإدارة الحقيقية (لو الأدمن
+ * فتح اللوحة وحفظ حاجة على الجهاز ده) بدل الداتا الثابتة، عشان أي قسم
+ * يضيفه الأدمن يظهر فعلاً "برّه" عند الطالب.
+ */
+function getInitialSections(): SectionRow[] {
+  if (isSupabaseConfigured) return [];
+  return hasAdminData() ? getBridgedSections() : DEMO_SECTIONS;
+}
+
 export function useSections() {
-  const [sections, setSections] = useState<SectionRow[]>(isSupabaseConfigured ? [] : DEMO_SECTIONS);
+  const [sections, setSections] = useState<SectionRow[]>(getInitialSections);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState<string | null>(null);
   // اسم فريد لكل نسخة من الـ hook — لو أكتر من مكوّن استخدم useSections()
@@ -42,7 +53,14 @@ export function useSections() {
 
   useEffect(() => {
     refresh();
-    if (!isSupabaseConfigured || !supabase) return;
+    if (!isSupabaseConfigured || !supabase) {
+      // وضع بدون Supabase: نسمع لأي تغيير يحفظه الأدمن (نفس التاب أو تاب
+      // تاني) ونحدّث القائمة فوراً — ده اللي كان ناقص وبيمنع ظهور الأقسام
+      // المضافة حديثاً عند الطالب.
+      return subscribeAdminData(() => {
+        setSections(hasAdminData() ? getBridgedSections() : DEMO_SECTIONS);
+      });
+    }
     // Live updates: any admin edit reflects instantly for every open tab/device.
     const channel = supabase
       .channel(channelName)
