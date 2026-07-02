@@ -69,20 +69,19 @@ export function useContent(sectionId?: number) {
 
   useEffect(() => {
     refresh();
-    if (shouldUseAdminBridge() || !isSupabaseConfigured || !supabase) {
-      // نفس مبدأ useSections: أي تغيير من لوحة الإدارة (إضافة/تعديل/مسح
-      // قسم، صورة، فيديو، ملف، أو تسجيل صوتي) ينعكس هنا فوراً — حتى لو
-      // .env.local فيه بيانات Supabase حقيقية، لأن لوحة الإدارة بتحفظ
-      // محلياً بس ومش بتكتب في Supabase فعلياً.
-      return subscribeAdminData(() => {
-        setItems(getInitialContent(sectionId));
-      });
-    }
+    // نفس مبدأ useSections: نسمع دايماً لأي تغيير يوصل عن طريق
+    // adminBridge — سواء من نفس الجهاز أو من سحب تلقائي لأحدث نسخة من
+    // Supabase (app_data). كده أي زائر جديد ياخد آخر تحديث فورًا.
+    const unsubscribeBridge = subscribeAdminData(() => {
+      setItems(getInitialContent(sectionId));
+    });
+    if (!isSupabaseConfigured || !supabase) return unsubscribeBridge;
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'content' }, () => refresh())
       .subscribe();
     return () => {
+      unsubscribeBridge();
       supabase.removeChannel(channel);
     };
   }, [refresh, channelName, sectionId]);
