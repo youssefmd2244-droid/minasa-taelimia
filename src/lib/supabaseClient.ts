@@ -58,6 +58,8 @@ export interface SectionRow {
 
 export type ContentType =
   | 'video'
+  | 'image'
+  | 'audio'
   | 'text'
   | 'pdf'
   | 'word'
