@@ -187,6 +187,18 @@ export const translations = {
     search_sections: 'الأقسام',
     search_lessons: 'الدروس',
     search_close: 'إغلاق',
+
+    // Sections Explorer (شريط الأقسام العلوي)
+    nav_sections: 'الأقسام',
+    sections_open: 'تصفح الأقسام',
+    sections_modal_title: 'الأقسام',
+    sections_modal_empty: 'لا توجد أقسام بعد',
+    sections_back: 'رجوع للأقسام',
+    sections_content_empty: 'لا يوجد محتوى في هذا القسم بعد',
+    sections_loading: 'جاري التحميل...',
+    sections_item_count: 'عنصر',
+    content_download: 'تحميل',
+    content_open_file: 'فتح الملف',
   },
 
   en: {
@@ -362,6 +374,18 @@ export const translations = {
     search_sections: 'Subjects',
     search_lessons: 'Lessons',
     search_close: 'Close',
+
+    // Sections Explorer (top sections bar)
+    nav_sections: 'Sections',
+    sections_open: 'Browse sections',
+    sections_modal_title: 'Sections',
+    sections_modal_empty: 'No sections yet',
+    sections_back: 'Back to sections',
+    sections_content_empty: 'No content in this section yet',
+    sections_loading: 'Loading...',
+    sections_item_count: 'items',
+    content_download: 'Download',
+    content_open_file: 'Open file',
   },
 
   egy: {
@@ -537,6 +561,18 @@ export const translations = {
     search_sections: 'الأقسام',
     search_lessons: 'الدروس',
     search_close: 'قفل',
+
+    // Sections Explorer (شريط الأقسام اللي فوق)
+    nav_sections: 'الأقسام',
+    sections_open: 'تصفح الأقسام',
+    sections_modal_title: 'الأقسام',
+    sections_modal_empty: 'مفيش أقسام لسه',
+    sections_back: 'رجوع للأقسام',
+    sections_content_empty: 'مفيش محتوى في القسم ده لسه',
+    sections_loading: 'بيتحمّل...',
+    sections_item_count: 'عنصر',
+    content_download: 'تحميل',
+    content_open_file: 'افتح الملف',
   },
 } as const;
 
