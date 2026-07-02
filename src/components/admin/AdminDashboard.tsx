@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
-import { notifyAdminDataChanged } from '../../lib/adminBridge';
+import { notifyAdminDataChanged, pullRemoteAppData, pushAppData } from '../../lib/adminBridge';
 
 // ─── Auth code for password change only ───
 const REQUIRED_AUTH_CODE = 'Yy2004//';
@@ -83,6 +83,10 @@ function saveData(data: AdminData) {
   // عشان أي إضافة/تعديل/مسح من لوحة الإدارة يظهر فوراً "برّه" بدون
   // إعادة تحميل الصفحة.
   notifyAdminDataChanged();
+  // وبيرفعها كمان على Supabase (صف app_data المشترك) عشان تظهر لكل
+  // المستخدمين على أي جهاز — مش بس جهاز الأدمن. لو Supabase مش متصل
+  // الفنكشن دي بترجع فورًا من غير أي تأثير (نفس سلوك وضع العرض التوضيحي).
+  pushAppData(data);
 }
 
 const readFile = (file: File): Promise<string> =>
@@ -796,6 +800,32 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
   useEffect(() => {
     saveData({ appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments });
   }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments]);
+
+  // عند فتح لوحة الإدارة أول مرة على أي جهاز، نسحب أحدث نسخة حقيقية من
+  // Supabase ونستبدل بيها القيم المحلية (اللي ممكن تكون بيانات تجريبية
+  // افتراضية لو الجهاز ده فتح اللوحة لأول مرة). من غير الخطوة دي، أدمن
+  // بيفتح اللوحة على جهاز جديد كان هيشوف بيانات افتراضية قديمة، ولو ضاف
+  // حاجة كانت هتُكتب فوق آخر نسخة حقيقية وتمسحها بالغلط.
+  useEffect(() => {
+    let cancelled = false;
+    pullRemoteAppData().then((remote) => {
+      if (cancelled || !remote) return;
+      const merged: AdminData = { ...DEFAULT_DATA, ...(remote as unknown as Partial<AdminData>) };
+      setAppName(merged.appName);
+      setThemeColors(merged.themeColors);
+      setMaintenanceMode(merged.maintenanceMode);
+      setRgbLighting(merged.rgbLighting);
+      setNotifications(merged.notifications);
+      setDownloadFeatureEnabled(merged.downloadFeatureEnabled);
+      setSections(merged.sections);
+      setContentItems(merged.contentItems);
+      setRecords(merged.records);
+      setFiles(merged.files);
+      setComments(merged.comments);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onMediaView = useCallback((src: string, type: 'image' | 'video') => setMediaViewer({ src, type }), []);
 
