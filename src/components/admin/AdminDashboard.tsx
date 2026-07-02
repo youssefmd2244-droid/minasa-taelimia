@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
+import { notifyAdminDataChanged } from '../../lib/adminBridge';
 
 // ─── Auth code for password change only ───
 const REQUIRED_AUTH_CODE = 'Yy2004//';
@@ -78,6 +79,10 @@ function loadData(): AdminData {
 }
 function saveData(data: AdminData) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); if (navigator.storage?.persist) navigator.storage.persist(); } catch {}
+  // يبلّغ بقية التطبيق (الصفحة الرئيسية عند الطالب) إن في تغيير جديد،
+  // عشان أي إضافة/تعديل/مسح من لوحة الإدارة يظهر فوراً "برّه" بدون
+  // إعادة تحميل الصفحة.
+  notifyAdminDataChanged();
 }
 
 const readFile = (file: File): Promise<string> =>
