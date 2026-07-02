@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured, type SectionRow } from '../lib/supabaseClient';
-import { getBridgedSections, hasAdminData, subscribeAdminData } from '../lib/adminBridge';
+import { getBridgedSections, shouldUseAdminBridge, subscribeAdminData } from '../lib/adminBridge';
 
 const DEMO_SECTIONS: SectionRow[] = [
   { id: 1, title: 'الرياضيات — المستوى الأول', is_visible: true, is_deleted: false, deleted_at: null, display_order: 1 },
@@ -15,18 +15,19 @@ const DEMO_SECTIONS: SectionRow[] = [
 ];
 
 /**
- * لو مفيش Supabase متصل: بنستخدم بيانات لوحة الإدارة الحقيقية (لو الأدمن
- * فتح اللوحة وحفظ حاجة على الجهاز ده) بدل الداتا الثابتة، عشان أي قسم
- * يضيفه الأدمن يظهر فعلاً "برّه" عند الطالب.
+ * أولوية القراءة: بيانات لوحة الإدارة المحلية (لو موجودة) > Supabase
+ * الحقيقي (لو متصل) > بيانات تجريبية ثابتة. راجع shouldUseAdminBridge
+ * في adminBridge.ts لسبب الأولوية دي.
  */
 function getInitialSections(): SectionRow[] {
+  if (shouldUseAdminBridge()) return getBridgedSections();
   if (isSupabaseConfigured) return [];
-  return hasAdminData() ? getBridgedSections() : DEMO_SECTIONS;
+  return DEMO_SECTIONS;
 }
 
 export function useSections() {
   const [sections, setSections] = useState<SectionRow[]>(getInitialSections);
-  const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [loading, setLoading] = useState(isSupabaseConfigured && !shouldUseAdminBridge());
   const [error, setError] = useState<string | null>(null);
   // اسم فريد لكل نسخة من الـ hook — لو أكتر من مكوّن استخدم useSections()
   // في نفس الوقت (مثلاً SearchOverlay + مكوّن تاني)، كل واحد لازم يبقى
@@ -35,6 +36,10 @@ export function useSections() {
   const channelName = useRef(`sections-changes-${Math.random().toString(36).slice(2)}`).current;
 
   const refresh = useCallback(async () => {
+    if (shouldUseAdminBridge()) {
+      setSections(getBridgedSections());
+      return;
+    }
     if (!isSupabaseConfigured || !supabase) return;
     setLoading(true);
     const { data, error: err } = await supabase
@@ -53,12 +58,13 @@ export function useSections() {
 
   useEffect(() => {
     refresh();
-    if (!isSupabaseConfigured || !supabase) {
-      // وضع بدون Supabase: نسمع لأي تغيير يحفظه الأدمن (نفس التاب أو تاب
-      // تاني) ونحدّث القائمة فوراً — ده اللي كان ناقص وبيمنع ظهور الأقسام
-      // المضافة حديثاً عند الطالب.
+    if (shouldUseAdminBridge() || !isSupabaseConfigured || !supabase) {
+      // وضع لوحة الإدارة المحلية (الأولوية) أو بدون Supabase أصلاً: نسمع
+      // لأي تغيير يحفظه الأدمن (نفس التاب أو تاب تاني) ونحدّث القائمة
+      // فوراً — ده اللي كان ناقص وبيمنع ظهور الأقسام المضافة حديثاً عند
+      // الطالب، حتى لو .env.local فيه بيانات Supabase حقيقية.
       return subscribeAdminData(() => {
-        setSections(hasAdminData() ? getBridgedSections() : DEMO_SECTIONS);
+        setSections(shouldUseAdminBridge() ? getBridgedSections() : DEMO_SECTIONS);
       });
     }
     // Live updates: any admin edit reflects instantly for every open tab/device.
