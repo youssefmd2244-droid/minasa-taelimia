@@ -21,12 +21,15 @@ import {
   Presentation,
   Archive,
   Star,
+  Music,
 } from 'lucide-react';
 import { useContent } from '../../hooks/useContent';
 import type { ContentType } from '../../lib/supabaseClient';
 
 const TYPE_META: Record<ContentType, { icon: typeof FileText; color: string; label: string }> = {
   video: { icon: Video, color: '#6EB5FF', label: 'فيديو' },
+  image: { icon: FileImage, color: '#E882B4', label: 'صورة' },
+  audio: { icon: Music, color: '#9B8FFF', label: 'تسجيل صوتي' },
   text: { icon: FileText, color: '#6BBF7A', label: 'نص' },
   pdf: { icon: FileImage, color: '#F4845F', label: 'PDF' },
   word: { icon: FileText, color: '#4472C4', label: 'Word' },
@@ -68,6 +71,7 @@ export default function LessonList({ sectionId, limit }: LessonListProps) {
       {visible.map((item, index) => {
         const meta = TYPE_META[item.type];
         const Icon = meta.icon;
+        const hasMediaPreview = (item.type === 'image' || item.type === 'video') && !!item.file_url;
         return (
           <motion.div
             key={item.id}
@@ -77,14 +81,38 @@ export default function LessonList({ sectionId, limit }: LessonListProps) {
             transition={{ duration: 0.5, delay: index * 0.06, ease: [0.16, 1, 0.3, 1] }}
             style={{
               display: 'flex',
-              alignItems: 'center',
-              gap: '14px',
+              flexDirection: 'column',
+              gap: hasMediaPreview ? '10px' : 0,
               padding: '16px 18px',
               borderRadius: '14px',
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.08)',
             }}
           >
+            {/* معاينة حقيقية للصورة/الفيديو — ده اللي كان ناقص وبيخلي أي
+                صورة أو فيديو يضيفه الأدمن يظهر فعلياً هنا مش مجرد أيقونة */}
+            {hasMediaPreview && (
+              <div style={{ borderRadius: '10px', overflow: 'hidden', background: '#000' }}>
+                {item.type === 'image' ? (
+                  <img
+                    src={item.file_url as string}
+                    alt={item.title}
+                    style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', display: 'block' }}
+                  />
+                ) : (
+                  <video
+                    src={item.file_url as string}
+                    controls
+                    style={{ width: '100%', maxHeight: '260px', display: 'block' }}
+                  />
+                )}
+              </div>
+            )}
+            {item.type === 'audio' && item.file_url && (
+              <audio src={item.file_url} controls style={{ width: '100%' }} />
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div
               style={{
                 width: '40px',
@@ -138,6 +166,7 @@ export default function LessonList({ sectionId, limit }: LessonListProps) {
                 <Download size={16} />
               </button>
             )}
+            </div>
           </motion.div>
         );
       })}
