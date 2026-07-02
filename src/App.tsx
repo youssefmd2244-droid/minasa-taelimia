@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Settings, Search as SearchIcon } from 'lucide-react';
+import { Settings, Search as SearchIcon, BookOpen } from 'lucide-react';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
 import SearchOverlay from './components/SearchOverlay';
+import SectionsExplorer from './components/SectionsExplorer';
 import HeroCarousel from './components/landing/HeroCarousel';
 import AcademyShowcase from './components/landing/AcademyShowcase';
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -51,6 +52,7 @@ function AppContent() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showPasswordGate, setShowPasswordGate] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showSections, setShowSections] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
   const [adminPassword, setAdminPassword] = useState(ADMIN_PASS);
   const gearRef = useRef<HTMLButtonElement>(null);
@@ -144,6 +146,9 @@ function AppContent() {
       {/* Real, functional search — reads the same live sections/content data as the rest of the app */}
       <SearchOverlay open={showSearch} onClose={() => setShowSearch(false)} />
 
+      {/* شريط/نافذة الأقسام — بيقرأ نفس بيانات useSections/useContent الحية */}
+      <SectionsExplorer open={showSections} onClose={() => setShowSections(false)} />
+
       {/* Intro Splash — renders immediately */}
       <AnimatePresence>
         {showIntro && <IntroSplash onFinish={() => setShowIntro(false)} />}
@@ -173,6 +178,13 @@ function AppContent() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => setShowSections(true)}
+              title={t('sections_open')}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <BookOpen size={16} />
+            </button>
             <button
               onClick={() => setShowSearch(true)}
               title={t('search_open')}
