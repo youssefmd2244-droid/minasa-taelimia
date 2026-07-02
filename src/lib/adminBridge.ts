@@ -77,9 +77,24 @@ function readAdminData(): RawAdminData | null {
   }
 }
 
-/** true إذا كانت لوحة الإدارة اتفتحت وحفظت أي بيانات على الجهاز ده من قبل. */
+/**
+ * true إذا كانت لوحة الإدارة اتفتحت وحفظت أي بيانات على الجهاز ده من قبل.
+ */
 export function hasAdminData(): boolean {
   return readAdminData() !== null;
+}
+
+/**
+ * لوحة الإدارة (AdminDashboard.tsx) بتحفظ كل حاجة محلياً على الجهاز
+ * (localStorage) ومش بتكتب في جداول Supabase أصلاً — حتى لو .env.local
+ * فيه بيانات اتصال حقيقية. فلو الأدمن استخدم اللوحة وحفظ أي حاجة، لازم
+ * الصفحة الرئيسية تاخد البيانات من نفس المكان ده، مش من Supabase (اللي
+ * هيكون فاضي أو غير متزامن). فقط لو مفيش أي بيانات محلية محفوظة أصلاً
+ * (يعني الأدمن لسه ما فتحش اللوحة على الجهاز ده) بنرجع لـ Supabase (لو
+ * متصل) أو للبيانات التجريبية الثابتة.
+ */
+export function shouldUseAdminBridge(): boolean {
+  return hasAdminData();
 }
 
 const FILE_TYPE_MAP: Record<RawFileItem['fileType'], ContentType> = {
