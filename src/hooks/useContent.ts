@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured, type ContentRow } from '../lib/supabaseClient';
-import { getBridgedContent, hasAdminData, subscribeAdminData } from '../lib/adminBridge';
+import { getBridgedContent, shouldUseAdminBridge, subscribeAdminData } from '../lib/adminBridge';
 
 const DEMO_CONTENT: ContentRow[] = [
   {
@@ -34,21 +34,25 @@ const DEMO_CONTENT: ContentRow[] = [
   },
 ];
 
-/** لو مفيش Supabase متصل: استخدم بيانات لوحة الإدارة الحقيقية (لو موجودة). */
+/** أولوية القراءة: بيانات لوحة الإدارة المحلية > Supabase الحقيقي > بيانات تجريبية. */
 function getInitialContent(sectionId?: number): ContentRow[] {
-  const base = isSupabaseConfigured ? [] : hasAdminData() ? getBridgedContent() : DEMO_CONTENT;
+  const base = shouldUseAdminBridge() ? getBridgedContent() : isSupabaseConfigured ? [] : DEMO_CONTENT;
   return sectionId === undefined ? base : base.filter((c) => c.section_id === sectionId);
 }
 
 export function useContent(sectionId?: number) {
   const [items, setItems] = useState<ContentRow[]>(() => getInitialContent(sectionId));
-  const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [loading, setLoading] = useState(isSupabaseConfigured && !shouldUseAdminBridge());
   const [error, setError] = useState<string | null>(null);
   // نفس مبدأ useSections — اسم فريد لكل نسخة عشان لا يحصل تصادم لما
   // SearchOverlay و LessonList يستخدموا useContent() في نفس اللحظة.
   const channelName = useRef(`content-changes-${Math.random().toString(36).slice(2)}`).current;
 
   const refresh = useCallback(async () => {
+    if (shouldUseAdminBridge()) {
+      setItems(getInitialContent(sectionId));
+      return;
+    }
     if (!isSupabaseConfigured || !supabase) return;
     setLoading(true);
     let query = supabase.from('content').select('*').eq('is_deleted', false);
@@ -65,9 +69,11 @@ export function useContent(sectionId?: number) {
 
   useEffect(() => {
     refresh();
-    if (!isSupabaseConfigured || !supabase) {
+    if (shouldUseAdminBridge() || !isSupabaseConfigured || !supabase) {
       // نفس مبدأ useSections: أي تغيير من لوحة الإدارة (إضافة/تعديل/مسح
-      // قسم، صورة، فيديو، ملف، أو تسجيل صوتي) ينعكس هنا فوراً بدون Supabase.
+      // قسم، صورة، فيديو، ملف، أو تسجيل صوتي) ينعكس هنا فوراً — حتى لو
+      // .env.local فيه بيانات Supabase حقيقية، لأن لوحة الإدارة بتحفظ
+      // محلياً بس ومش بتكتب في Supabase فعلياً.
       return subscribeAdminData(() => {
         setItems(getInitialContent(sectionId));
       });
