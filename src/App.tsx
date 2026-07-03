@@ -121,81 +121,65 @@ function AppContent() {
     window.location.hash = '';
   };
 
-  // مشاركة ملف التطبيق نفسه (APK) عشان اللي هيستلمه ينزّله ويثبّته على
-  // طول — مش مجرد رابط. بيستخدم Web Share API (المستوى اللي بيدعم
-  // مشاركة ملفات) عشان تفتح نفس قائمة تطبيقات المشاركة الأصلية في
-  // الموبايل (واتساب، تليجرام، إلخ) زي أي ملف عادي بتشاركه.
+  // مشاركة ملف التطبيق (APK) — أو على الأقل رابط تحميل مباشر ليه —
+  // عشان اللي هيستلمه في واتساب/تليجرام يقدر يحمّله ويثبّته.
   //
-  // ملحوظة: لازم ملف الـ APK الموقّع الحقيقي بتاعك يكون موجود في مجلد
-  // public/ باسم app-release.apk (يعني يبقى متاح على
-  // https://your-domain/app-release.apk) عشان الكود يقدر يجيبه ويشاركه.
-  // لو مش موجود، أو المتصفح/الجهاز مش بيدعم مشاركة الملفات، بيرجع
-  // تلقائياً لمشاركة رابط التطبيق العادي بدل ما يقف بايظ.
+  // ملحوظة مهمة اتعلمناها من التجربة اللي فاتت: نداء navigator.share
+  // لازم يحصل *جوه* حدث الضغطة على الزرار بسرعة، من غير ما ننتظر
+  // طلبات شبكة (fetch) قبله — المتصفح بيعتبر "إذن اللمسة" (user
+  // gesture) انتهى لو استنينا كتير قبل ما نناديه، فيرفض المشاركة
+  // بصمت من غير أي رسالة، وده اللي كان بيخلّي الزرار "مايعملش حاجة".
+  // فدلوقتي بنتأكد الأول (من غير أي شبكة) هل المتصفح أصلاً بيقبل
+  // مشاركة ملف APK، ولو لأ (وده الغالب — كروم وغيره بيمنعوا مشاركة
+  // ملفات .apk كملفات تنفيذية لأسباب أمنية) بنشارك رابط تحميل مباشر
+  // للملف على طول من غير أي تأخير.
   const APK_URL = '/app-release.apk';
   const APK_FILENAME = 'EDUVERSE.apk';
-
-  const shareUrl = `${window.location.origin}${window.location.pathname}`;
-  const shareViaLinkFallback = async () => {
-    const shareData = { title: 'EDUVERSE', text: t('nav_start'), url: shareUrl };
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        return;
-      }
-    } catch {
-      // المستخدم لغى المشاركة أو الميزة مش مدعومة — نكمل على النسخ كبديل
-    }
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      window.alert(t('share_app_copied'));
-    } catch {
-      window.prompt(t('share_app'), shareUrl);
-    }
-  };
+  const apkDownloadUrl = `${window.location.origin}${APK_URL}`;
 
   const handleShareApp = async () => {
-    // 1) نحاول نشارك ملف الـ APK نفسه (مش رابط) لو المتصفح بيدعم كده.
-    try {
-      const canShareFiles = typeof navigator.canShare === 'function';
-      if (navigator.share && canShareFiles) {
+    const dummyFile = new File([new Uint8Array(1)], APK_FILENAME, {
+      type: 'application/vnd.android.package-archive',
+    });
+    const canShareApkFile =
+      typeof navigator.canShare === 'function' && navigator.canShare({ files: [dummyFile] });
+
+    // 1) لو المتصفح فعلاً بيقبل مشاركة ملف APK كملف حقيقي — نجرّب كده.
+    if (navigator.share && canShareApkFile) {
+      try {
         const res = await fetch(APK_URL);
         if (res.ok) {
           const blob = await res.blob();
-          const file = new File([blob], APK_FILENAME, {
-            type: 'application/vnd.android.package-archive',
-          });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: 'EDUVERSE',
-              text: t('nav_start'),
-            });
-            return;
-          }
+          const file = new File([blob], APK_FILENAME, { type: 'application/vnd.android.package-archive' });
+          await navigator.share({ files: [file], title: 'EDUVERSE', text: t('nav_start') });
+          return;
         }
+      } catch {
+        // المستخدم لغى نافذة المشاركة أو حصل خطأ في تجهيز الملف —
+        // نكمل على مشاركة رابط التحميل المباشر تحت من غير ما نوقف
       }
-    } catch {
-      // المستخدم لغى المشاركة، أو الملف مش موجود، أو الجهاز مش بيدعم
-      // مشاركة الملفات — نكمل على البديل تحت من غير ما نوقف المستخدم
     }
-    // 2) بديل: لو مشاركة الملف مش ممكنة، على الأقل ننزّل الملف مباشرة
-    //    على جهاز المستخدم عشان يقدر يبعته يدوياً من تطبيقاته.
-    try {
-      const res = await fetch(APK_URL);
-      if (res.ok) {
-        const blob = await res.blob();
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = APK_FILENAME;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+
+    // 2) البديل الأساسي (وده اللي هيشتغل في أغلب الحالات فعلياً):
+    //    مشاركة رابط تحميل مباشر لملف الـ APK نفسه — مش رابط الموقع
+    //    العادي — عشان اللي يستلمه يدوس عليه والملف ينزله على طول.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'EDUVERSE', text: t('nav_start'), url: apkDownloadUrl });
         return;
+      } catch {
+        // المستخدم لغى نافذة المشاركة، أو navigator.share مش مسموح
+        // هنا — نكمل على النسخ/العرض كملاذ أخير تحت
       }
-    } catch {
-      // مفيش ملف APK متاح دلوقتي — نرجع لمشاركة الرابط كملاذ أخير
     }
-    await shareViaLinkFallback();
+
+    // 3) آخر حل مضمون — دايماً بيدّي المستخدم رد فعل واضح مش "مفيش حاجة"
+    try {
+      await navigator.clipboard.writeText(apkDownloadUrl);
+      window.alert(t('share_app_copied'));
+    } catch {
+      window.prompt(t('share_app'), apkDownloadUrl);
+    }
   };
 
   if (showAdmin) {
