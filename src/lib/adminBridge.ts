@@ -179,6 +179,33 @@ export function initAdminBridgeSync(): void {
 
 initAdminBridgeSync();
 
+const MEDIA_BUCKET = 'eduverse-media';
+
+/**
+ * يرفع ملف فعلي (صورة/فيديو/صوت/مستند) على Supabase Storage ويرجّع رابط
+ * عام دائم، بدل تحويله لنص base64 ضخم جوه صف app_data المشترك. لو
+ * الرفع فشل أو Supabase مش متصل بيرجع null، وAdminDashboard.tsx بيرجع
+ * تلقائيًا لتشفير base64 المحلي بدل ما يوقف الأدمن.
+ */
+export async function uploadMediaFile(file: File, folder: string = 'misc'): Promise<string | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+    const path = `${folder}/${Date.now()}_${safeName}`;
+    const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, file, {
+      cacheControl: '3600',
+      upsert: true,
+      contentType: file.type || undefined,
+    });
+    if (error) { console.error('[adminBridge] upload failed:', error.message); return null; }
+    const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    return data.publicUrl || null;
+  } catch (e) {
+    console.error('[adminBridge] upload exception:', e);
+    return null;
+  }
+}
+
 const FILE_TYPE_MAP: Record<RawFileItem['fileType'], ContentType> = {
   pdf: 'pdf', word: 'word', excel: 'excel', ppt: 'powerpoint', zip: 'zip',
 };
@@ -186,14 +213,16 @@ const FILE_TYPE_MAP: Record<RawFileItem['fileType'], ContentType> = {
 export function getBridgedSections(): SectionRow[] {
   const data = readAdminData();
   if (!data?.sections) return [];
-  return data.sections.map((s) => ({
-    id: s.id,
-    title: s.title,
-    is_visible: s.isVisible,
-    is_deleted: s.isDeleted,
-    deleted_at: null,
-    display_order: s.displayOrder,
-  }));
+  return data.sections
+    .filter((s) => !s.isDeleted)
+    .map((s) => ({
+      id: s.id,
+      title: s.title,
+      is_visible: s.isVisible,
+      is_deleted: s.isDeleted,
+      deleted_at: null,
+      display_order: s.displayOrder,
+    }));
 }
 
 export function getBridgedContent(): ContentRow[] {
