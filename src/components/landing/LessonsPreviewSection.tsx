@@ -32,7 +32,7 @@ export default function LessonsPreviewSection() {
           </p>
         </motion.div>
 
-        <LessonList limit={6} />
+        <LessonList limit={6} onlyShowOnHome />
       </div>
     </section>
   );
