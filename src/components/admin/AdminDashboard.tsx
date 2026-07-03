@@ -4,11 +4,11 @@ import {
   Lock, Settings, BookOpen, FileText, MessageSquare, BarChart3, Trash2, Plus, Edit3, X,
   Check, Eye, EyeOff, Palette, Globe, Save, ArrowLeft, Home, Star, Shield, Power,
   Lightbulb, Bell, Image as ImageIcon, Video, UploadCloud, Type, Mic, MicOff, Download,
-  File, Music, StopCircle, ZoomIn, Monitor,
+  File, Music, StopCircle, ZoomIn, Monitor, Loader2, AlertCircle,
 } from 'lucide-react';
 import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
-import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, uploadMediaFile } from '../../lib/adminBridge';
+import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile } from '../../lib/adminBridge';
 import { genId } from '../../utils/id';
 
 // ─── Auth code for password change only ───
@@ -88,6 +88,17 @@ function saveData(data: AdminData) {
   // المستخدمين على أي جهاز — مش بس جهاز الأدمن. لو Supabase مش متصل
   // الفنكشن دي بترجع فورًا من غير أي تأثير (نفس سلوك وضع العرض التوضيحي).
   pushAppData(data);
+}
+
+/**
+ * نسخة "احفظ الآن" — بتستخدمها زرار الحفظ اليدوي في الإعدادات. بترجّع
+ * نتيجة حقيقية (نجح ولا فشل، ومحلي ولا على السحابة) بدل ما تفترض
+ * النجاح زي saveData العادية (اللي بتتنفذ تلقائيًا مع كل تغيير).
+ */
+async function saveDataNow(data: AdminData): Promise<{ ok: boolean; cloud: boolean }> {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); if (navigator.storage?.persist) navigator.storage.persist(); } catch {}
+  notifyAdminDataChanged();
+  return pushAppDataNow(data);
 }
 
 const readFile = async (file: File, folder: string = 'misc'): Promise<string> => {
@@ -805,11 +816,12 @@ function TrashTab({ sections, setSections, content, setContent, records, setReco
 }
 
 /* ─── Settings Tab ─── */
-function SettingsTab({ appName, setAppName, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange }: {
+function SettingsTab({ appName, setAppName, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange, onSaveNow, saveStatus, saveWasCloud }: {
   appName: string; setAppName: (v: string) => void; themeColors: string[]; setThemeColors: (v: string[]) => void;
   maintenanceMode: boolean; setMaintenanceMode: (v: boolean) => void; rgbLighting: boolean; setRgbLighting: (v: boolean) => void;
   notifications: boolean; setNotifications: (v: boolean) => void; downloadFeatureEnabled: boolean; setDownloadFeatureEnabled: (v: boolean) => void;
   onPasswordChange?: (pw: string) => void;
+  onSaveNow: () => void; saveStatus: 'idle' | 'saving' | 'saved' | 'error'; saveWasCloud: boolean;
 }) {
   const [newPassword, setNewPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState('');
   const [authCode, setAuthCode] = useState(''); const [showPw, setShowPw] = useState(false);
@@ -828,6 +840,29 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
   return (
     <div className="space-y-5">
       <h2 className="text-xl font-bold text-white">الإعدادات</h2>
+      {/* حفظ كل التغييرات الآن */}
+      <div className="rounded-2xl p-4" style={{ background: 'rgba(107,191,122,0.06)', border: '1px solid rgba(107,191,122,0.25)' }}>
+        <div className="flex items-center gap-2 mb-2"><Save size={16} className="text-[#6BBF7A]" /><h3 className="text-base font-bold text-white">حفظ التغييرات</h3></div>
+        <p className="text-xs text-white/45 mb-3">
+          كل الأقسام والمحتوى والملفات والتسجيلات والإعدادات بتتحفظ تلقائيًا أول ما تعدّل أي حاجة، بس الزرار ده بيحفظ كل حاجة فورًا ويأكّدلك إن الحفظ نجح فعلاً.
+        </p>
+        <button
+          onClick={onSaveNow}
+          disabled={saveStatus === 'saving'}
+          className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm transition-all"
+          style={{
+            background: saveStatus === 'error' ? 'rgba(255,80,80,0.15)' : saveStatus === 'saved' ? 'rgba(107,191,122,0.18)' : 'white',
+            color: saveStatus === 'error' ? '#f87171' : saveStatus === 'saved' ? '#6BBF7A' : '#0a0a1a',
+            cursor: saveStatus === 'saving' ? 'wait' : 'pointer',
+            opacity: saveStatus === 'saving' ? 0.75 : 1,
+          }}
+        >
+          {saveStatus === 'saving' && <><Loader2 size={15} className="animate-spin" /> جاري الحفظ...</>}
+          {saveStatus === 'saved' && <><Check size={15} /> {saveWasCloud ? 'تم حفظ كل التغييرات على السحابة' : 'تم الحفظ محليًا على هذا الجهاز'}</>}
+          {saveStatus === 'error' && <><AlertCircle size={15} /> فشل الحفظ — تحقق من الاتصال بالإنترنت</>}
+          {saveStatus === 'idle' && <><Save size={15} /> حفظ كل التغييرات الآن</>}
+        </button>
+      </div>
       {/* App name */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-2 mb-3"><Globe size={16} className="text-white/60" /><h3 className="text-base font-bold text-white">اسم التطبيق</h3></div>
@@ -928,6 +963,22 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
 
   useEffect(() => {
     saveData({ appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments });
+  }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments]);
+
+  // زرار "حفظ الآن" في الإعدادات — بيجمع أحدث نسخة من كل حاجة (أقسام،
+  // محتوى، ملفات، تسجيلات، إعدادات) ويحفظها فورًا (محلي + Supabase لو
+  // متصل) ويرجّع تأكيد حقيقي بدل انتظار الحفظ التلقائي المؤجَّل بصمت.
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveWasCloud, setSaveWasCloud] = useState(false);
+  const handleSaveNow = useCallback(async () => {
+    setSaveStatus('saving');
+    const result = await saveDataNow({
+      appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled,
+      sections, contentItems, records, files, comments,
+    });
+    setSaveWasCloud(result.cloud);
+    setSaveStatus(result.ok ? 'saved' : 'error');
+    setTimeout(() => setSaveStatus('idle'), 3500);
   }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments]);
 
   // عند فتح لوحة الإدارة أول مرة على أي جهاز، نسحب أحدث نسخة حقيقية من
@@ -1064,7 +1115,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             {activeTab === 'analytics' && <AnalyticsTab comments={comments} content={contentItems} records={records} files={files} />}
             {activeTab === 'trash' && <TrashTab sections={sections} setSections={setSections} content={contentItems} setContent={setContentItems} records={records} setRecords={setRecords} files={files} setFiles={setFiles} />}
             {activeTab === 'display' && <DisplayScreen />}
-            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} />}
+            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} />}
 
           </motion.div>
         </AnimatePresence>
