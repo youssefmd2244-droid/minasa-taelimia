@@ -121,10 +121,21 @@ function AppContent() {
     window.location.hash = '';
   };
 
-  // مشاركة رابط التطبيق — بيستخدم نافذة المشاركة الأصلية في الموبايل
-  // (واتساب، تليجرام، إلخ) لو متاحة، وإلا بينسخ الرابط للحافظة كبديل.
+  // مشاركة ملف التطبيق نفسه (APK) عشان اللي هيستلمه ينزّله ويثبّته على
+  // طول — مش مجرد رابط. بيستخدم Web Share API (المستوى اللي بيدعم
+  // مشاركة ملفات) عشان تفتح نفس قائمة تطبيقات المشاركة الأصلية في
+  // الموبايل (واتساب، تليجرام، إلخ) زي أي ملف عادي بتشاركه.
+  //
+  // ملحوظة: لازم ملف الـ APK الموقّع الحقيقي بتاعك يكون موجود في مجلد
+  // public/ باسم app-release.apk (يعني يبقى متاح على
+  // https://your-domain/app-release.apk) عشان الكود يقدر يجيبه ويشاركه.
+  // لو مش موجود، أو المتصفح/الجهاز مش بيدعم مشاركة الملفات، بيرجع
+  // تلقائياً لمشاركة رابط التطبيق العادي بدل ما يقف بايظ.
+  const APK_URL = '/app-release.apk';
+  const APK_FILENAME = 'EDUVERSE.apk';
+
   const shareUrl = `${window.location.origin}${window.location.pathname}`;
-  const handleShareApp = async () => {
+  const shareViaLinkFallback = async () => {
     const shareData = { title: 'EDUVERSE', text: t('nav_start'), url: shareUrl };
     try {
       if (navigator.share) {
@@ -140,6 +151,51 @@ function AppContent() {
     } catch {
       window.prompt(t('share_app'), shareUrl);
     }
+  };
+
+  const handleShareApp = async () => {
+    // 1) نحاول نشارك ملف الـ APK نفسه (مش رابط) لو المتصفح بيدعم كده.
+    try {
+      const canShareFiles = typeof navigator.canShare === 'function';
+      if (navigator.share && canShareFiles) {
+        const res = await fetch(APK_URL);
+        if (res.ok) {
+          const blob = await res.blob();
+          const file = new File([blob], APK_FILENAME, {
+            type: 'application/vnd.android.package-archive',
+          });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: 'EDUVERSE',
+              text: t('nav_start'),
+            });
+            return;
+          }
+        }
+      }
+    } catch {
+      // المستخدم لغى المشاركة، أو الملف مش موجود، أو الجهاز مش بيدعم
+      // مشاركة الملفات — نكمل على البديل تحت من غير ما نوقف المستخدم
+    }
+    // 2) بديل: لو مشاركة الملف مش ممكنة، على الأقل ننزّل الملف مباشرة
+    //    على جهاز المستخدم عشان يقدر يبعته يدوياً من تطبيقاته.
+    try {
+      const res = await fetch(APK_URL);
+      if (res.ok) {
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = APK_FILENAME;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+    } catch {
+      // مفيش ملف APK متاح دلوقتي — نرجع لمشاركة الرابط كملاذ أخير
+    }
+    await shareViaLinkFallback();
   };
 
   if (showAdmin) {
