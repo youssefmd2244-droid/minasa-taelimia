@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Settings, Search as SearchIcon, BookOpen } from 'lucide-react';
+import { Settings, Search as SearchIcon, BookOpen, Share2 } from 'lucide-react';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
@@ -121,6 +121,27 @@ function AppContent() {
     window.location.hash = '';
   };
 
+  // مشاركة رابط التطبيق — بيستخدم نافذة المشاركة الأصلية في الموبايل
+  // (واتساب، تليجرام، إلخ) لو متاحة، وإلا بينسخ الرابط للحافظة كبديل.
+  const shareUrl = `${window.location.origin}${window.location.pathname}`;
+  const handleShareApp = async () => {
+    const shareData = { title: 'EDUVERSE', text: t('nav_start'), url: shareUrl };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch {
+      // المستخدم لغى المشاركة أو الميزة مش مدعومة — نكمل على النسخ كبديل
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      window.alert(t('share_app_copied'));
+    } catch {
+      window.prompt(t('share_app'), shareUrl);
+    }
+  };
+
   if (showAdmin) {
     return (
       <div dir={dir}>
@@ -184,6 +205,13 @@ function AppContent() {
               className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
             >
               <BookOpen size={16} />
+            </button>
+            <button
+              onClick={handleShareApp}
+              title={t('share_app')}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <Share2 size={16} />
             </button>
             <button
               onClick={() => setShowSearch(true)}
