@@ -9,6 +9,7 @@ import {
 import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
 import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, uploadMediaFile } from '../../lib/adminBridge';
+import { genId } from '../../utils/id';
 
 // ─── Auth code for password change only ───
 const REQUIRED_AUTH_CODE = 'Yy2004//';
@@ -197,7 +198,7 @@ function SectionsTab({ sections, setSections }: { sections: Section[]; setSectio
   const activeSections = sections.filter(s => !s.isDeleted);
   const addSection = () => {
     if (!newTitle.trim()) return;
-    setSections(prev => [...prev, { id: Date.now(), title: newTitle, isVisible: true, isDeleted: false, displayOrder: activeSections.length + 1 }]);
+    setSections(prev => [...prev, { id: genId(), title: newTitle, isVisible: true, isDeleted: false, displayOrder: activeSections.length + 1 }]);
     setNewTitle('');
   };
   const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
@@ -277,7 +278,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     if (addMode === 'media' && !uploadedFile && !title.trim()) return;
     if (addMode === 'text' && !title.trim() && !desc.trim()) return;
     setContent(prev => [...prev, {
-      id: Date.now(), sectionId, title: title.trim() || (uploadedFile?.name || 'محتوى'),
+      id: genId(), sectionId, title: title.trim() || (uploadedFile?.name || 'محتوى'),
       type: addMode === 'text' ? 'text' : mediaType, contentBody: desc.trim(),
       fileUrl: uploadedFile?.url || '', isFeatured: false, showOnHome,
       allowDownload: false, isDeleted: false, attachments,
@@ -462,7 +463,7 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
     const finalUrl = uploadedAudio?.url || audioUrl;
     if (!finalUrl) return;
     setRecords(prev => [...prev, {
-      id: Date.now(), title: title.trim() || 'تعليق صوتي', audioUrl: finalUrl,
+      id: genId(), title: title.trim() || 'تعليق صوتي', audioUrl: finalUrl,
       sectionId, section: sections.find(s => s.id === sectionId)?.title || '',
       showOnHome, isDeleted: false, text: text.trim(), attachments,
     }]);
@@ -588,7 +589,7 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
   const addFile = () => {
     if (!uploadedFile) return;
     setFiles(prev => [...prev, {
-      id: Date.now(), title: title.trim() || uploadedFile.name, fileUrl: uploadedFile.url,
+      id: genId(), title: title.trim() || uploadedFile.name, fileUrl: uploadedFile.url,
       fileName: uploadedFile.name, fileType, sectionId, showOnHome: false,
       isDeleted: false, allowDownload: true, attachments,
     }]);
