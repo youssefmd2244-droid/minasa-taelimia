@@ -20,6 +20,8 @@ import { useLanguage, type Language } from '../i18n/LanguageContext';
 import { useSections } from '../hooks/useSections';
 import { useContent } from '../hooks/useContent';
 import type { ContentRow, ContentType } from '../lib/supabaseClient';
+import ZoomableImage from './ui/ZoomableImage';
+import VideoPlayer from './ui/VideoPlayer';
 
 interface SectionsExplorerProps {
   open: boolean;
@@ -154,10 +156,10 @@ function ContentLightbox({ item, onClose }: { item: ContentRow; onClose: () => v
       >
         <h3 style={{ color: 'white', fontSize: '17px', fontWeight: 700, textAlign: 'center', margin: 0 }}>{item.title}</h3>
         {item.type === 'image' && item.file_url && (
-          <img src={item.file_url} alt={item.title} style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '14px', objectFit: 'contain' }} />
+          <ZoomableImage src={item.file_url} alt={item.title} style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '14px', objectFit: 'contain' }} />
         )}
         {item.type === 'video' && item.file_url && (
-          <video src={item.file_url} controls autoPlay style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '14px' }} />
+          <VideoPlayer src={item.file_url} autoPlay borderRadius="14px" maxHeight="60vh" />
         )}
         {isAudio && item.file_url && (
           <audio src={item.file_url} controls style={{ width: '100%', maxWidth: '360px' }} />
