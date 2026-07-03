@@ -13,15 +13,21 @@ export default function GlobalPresence() {
           <motion.h2
             className="text-3xl font-black text-white leading-tight inline-block"
             animate={{
+              rotateX: [0, 6, 0, -6, 0],
               textShadow: [
                 '0 0 6px rgba(249,115,22,0.15)',
-                '0 0 26px rgba(249,115,22,0.85)',
+                '0 0 24px rgba(249,115,22,0.9)',
+                '0 0 24px rgba(232,130,180,0.85)',
+                '0 0 24px rgba(110,181,255,0.85)',
+                '0 0 24px rgba(107,191,122,0.85)',
                 '0 0 6px rgba(249,115,22,0.15)',
               ],
             }}
             transition={{
-              textShadow: { duration: 2.4, repeat: Infinity, ease: 'easeInOut' },
+              rotateX: { duration: 6, repeat: Infinity, ease: 'easeInOut' },
+              textShadow: { duration: 5, repeat: Infinity, ease: 'easeInOut' },
             }}
+            style={{ transformStyle: 'preserve-3d', perspective: '600px', backfaceVisibility: 'hidden' }}
           >
             طلاب من كل<br />
             <span style={{ color: '#f97316' }}>أنحاء العالم العربي</span>
