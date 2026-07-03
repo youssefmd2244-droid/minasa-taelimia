@@ -13,7 +13,6 @@ export default function GlobalPresence() {
           <motion.h2
             className="text-3xl font-black text-white leading-tight inline-block"
             animate={{
-              rotateY: [0, 360],
               textShadow: [
                 '0 0 6px rgba(249,115,22,0.15)',
                 '0 0 26px rgba(249,115,22,0.85)',
@@ -21,10 +20,8 @@ export default function GlobalPresence() {
               ],
             }}
             transition={{
-              rotateY: { duration: 6, repeat: Infinity, ease: 'linear' },
               textShadow: { duration: 2.4, repeat: Infinity, ease: 'easeInOut' },
             }}
-            style={{ transformStyle: 'preserve-3d', perspective: '600px' }}
           >
             طلاب من كل<br />
             <span style={{ color: '#f97316' }}>أنحاء العالم العربي</span>
