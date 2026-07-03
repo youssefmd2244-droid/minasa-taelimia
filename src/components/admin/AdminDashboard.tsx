@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
-import { notifyAdminDataChanged, pullRemoteAppData, pushAppData } from '../../lib/adminBridge';
+import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, uploadMediaFile } from '../../lib/adminBridge';
 
 // ─── Auth code for password change only ───
 const REQUIRED_AUTH_CODE = 'Yy2004//';
@@ -89,8 +89,11 @@ function saveData(data: AdminData) {
   pushAppData(data);
 }
 
-const readFile = (file: File): Promise<string> =>
-  new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
+const readFile = async (file: File, folder: string = 'misc'): Promise<string> => {
+  const uploaded = await uploadMediaFile(file, folder);
+  if (uploaded) return uploaded;
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
+};
 
 const fileTypeIcon: Record<string, string> = { pdf: '📄', word: '📝', excel: '📊', ppt: '📋', zip: '📦' };
 const fileTypeLabel: Record<string, string> = { pdf: 'PDF', word: 'Word', excel: 'Excel', ppt: 'PowerPoint', zip: 'ZIP' };
@@ -268,7 +271,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
   const typeLabels: Record<string, string> = { video: '🎬', image: '🖼️', text: '📝', pdf: '📄', word: '📝', powerpoint: '📊', excel: '📈', zip: '📦' };
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    const url = await readFile(file); setUploadedFile({ url, name: file.name });
+    const url = await readFile(file, 'content'); setUploadedFile({ url, name: file.name });
   };
   const addContent = () => {
     if (addMode === 'media' && !uploadedFile && !title.trim()) return;
@@ -281,7 +284,14 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     }]);
     setTitle(''); setDesc(''); setUploadedFile(null); setShowOnHome(false); setAttachments([]);
   };
-  const saveEdit = () => { if (!editingContent) return; setContent(prev => prev.map(c => c.id === editingContent.id ? editingContent : c)); setEditingContent(null); };
+  const [editingUpload, setEditingUpload] = useState<{ url: string; name: string } | null>(null);
+  const saveEdit = () => {
+    if (!editingContent) return;
+    setContent(prev => prev.map(c => c.id === editingContent.id
+      ? { ...editingContent, fileUrl: editingUpload?.url || editingContent.fileUrl }
+      : c));
+    setEditingContent(null); setEditingUpload(null);
+  };
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
@@ -386,6 +396,31 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                   </button>
                 </div>
               </div>
+              {editingContent?.id === item.id && (
+                <div className="mt-3 pt-3 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <select value={editingContent.sectionId} onChange={e => setEditingContent({ ...editingContent, sectionId: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg text-white outline-none text-sm" style={inp}>
+                    {activeSections.map(s => <option key={s.id} value={s.id} className="bg-gray-900">{s.title}</option>)}
+                  </select>
+                  {(editingContent.type === 'text') ? (
+                    <textarea value={editingContent.contentBody} onChange={e => setEditingContent({ ...editingContent, contentBody: e.target.value })} rows={2}
+                      placeholder="النص..." className="w-full px-3 py-2 rounded-lg text-white placeholder-white/30 outline-none resize-none text-sm" style={inp} />
+                  ) : (
+                    <>
+                      {(editingUpload?.url || editingContent.fileUrl) && (
+                        editingContent.type === 'image'
+                          ? <img src={editingUpload?.url || editingContent.fileUrl} alt="" className="w-full max-h-40 object-contain rounded-lg" style={{ background: '#000' }} />
+                          : <video src={editingUpload?.url || editingContent.fileUrl} controls className="w-full max-h-40 rounded-lg" />
+                      )}
+                      <label className="flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
+                        <UploadCloud size={12} /> استبدال {editingContent.type === 'image' ? 'الصورة' : 'الفيديو'}
+                        <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; setEditingUpload({ url: await readFile(nf, 'content'), name: nf.name }); }} className="hidden" />
+                      </label>
+                    </>
+                  )}
+                  <button onClick={() => { setEditingContent(null); setEditingUpload(null); }} className="w-full py-2 rounded-lg text-xs font-bold bg-white/10 text-white flex items-center justify-center gap-1"><X size={13} /> إلغاء</button>
+                </div>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>
@@ -406,8 +441,11 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
   const [sectionId, setSectionId] = useState(sections[0]?.id || 1);
   const [showOnHome, setShowOnHome] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [editingRecord, setEditingRecord] = useState<RecordItem | null>(null);
+  const [editingAudio, setEditingAudio] = useState<{ url: string; name: string } | null>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const activeSections = sections.filter(s => !s.isDeleted);
   const activeRecords = records.filter(r => !r.isDeleted);
   const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
   const startRecording = async () => {
@@ -430,6 +468,14 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
     }]);
     setTitle(''); setText(''); setAudioUrl(null); setUploadedAudio(null); setShowOnHome(false); setAttachments([]);
   };
+  const startEdit = (r: RecordItem) => { setEditingRecord(r); setEditingAudio(null); };
+  const saveEdit = () => {
+    if (!editingRecord) return;
+    setRecords(prev => prev.map(r => r.id === editingRecord.id
+      ? { ...editingRecord, audioUrl: editingAudio?.url || editingRecord.audioUrl, section: sections.find(s => s.id === editingRecord.sectionId)?.title || '' }
+      : r));
+    setEditingRecord(null); setEditingAudio(null);
+  };
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
@@ -447,7 +493,7 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
               </button>}
           <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
             <UploadCloud size={14} /> رفع صوت
-            <input type="file" accept="audio/*" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploadedAudio({ url: await readFile(f), name: f.name }); setAudioUrl(null); }} className="hidden" />
+            <input type="file" accept="audio/*" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploadedAudio({ url: await readFile(f, 'audio'), name: f.name }); setAudioUrl(null); }} className="hidden" />
           </label>
         </div>
         {(audioUrl || uploadedAudio) && (
@@ -455,11 +501,19 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
             <audio src={uploadedAudio?.url || audioUrl!} controls className="w-full" />
           </div>
         )}
+        <select value={sectionId} onChange={e => setSectionId(Number(e.target.value))}
+          className="w-full px-4 py-2.5 rounded-xl text-white outline-none mb-2 text-sm" style={inp}>
+          {activeSections.map(s => <option key={s.id} value={s.id} style={{ background: '#0a0a1a' }}>{s.title}</option>)}
+        </select>
         <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="العنوان (اختياري)"
           className="w-full px-4 py-2.5 rounded-xl text-white placeholder-white/30 outline-none mb-2 text-sm" style={inp} />
         <textarea value={text} onChange={e => setText(e.target.value)} placeholder="نص توضيحي..." rows={2}
           className="w-full px-4 py-2.5 rounded-xl text-white placeholder-white/30 outline-none mb-2 resize-none text-sm" style={inp} />
         <AttachmentPicker attachments={attachments} onChange={setAttachments} onView={onMediaView} />
+        <label className="flex items-center gap-2 mt-2 mb-1 cursor-pointer select-none">
+          <input type="checkbox" checked={showOnHome} onChange={e => setShowOnHome(e.target.checked)} />
+          <span className="text-xs text-white/50">إظهار في الصفحة الرئيسية</span>
+        </label>
         <button onClick={addRecord} disabled={!audioUrl && !uploadedAudio}
           className="w-full px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 mt-3 text-sm transition-all"
           style={{ background: (audioUrl || uploadedAudio) ? 'white' : 'rgba(255,255,255,0.1)', color: (audioUrl || uploadedAudio) ? '#0a0a1a' : 'rgba(255,255,255,0.3)' }}>
@@ -469,19 +523,46 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
       <div className="space-y-2">
         {activeRecords.map(r => (
           <motion.div key={r.id} layout className="rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
-                <Mic size={16} className="text-red-400" />
+            {editingRecord?.id === r.id ? (
+              <div className="space-y-2">
+                <input type="text" value={editingRecord.title} onChange={e => setEditingRecord({ ...editingRecord, title: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg text-white outline-none text-sm" style={inp} />
+                <select value={editingRecord.sectionId} onChange={e => setEditingRecord({ ...editingRecord, sectionId: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-lg text-white outline-none text-sm" style={inp}>
+                  {activeSections.map(s => <option key={s.id} value={s.id} style={{ background: '#0a0a1a' }}>{s.title}</option>)}
+                </select>
+                <audio src={editingAudio?.url || editingRecord.audioUrl} controls className="w-full" style={{ height: 32 }} />
+                <label className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
+                  <UploadCloud size={12} /> استبدال الصوت
+                  <input type="file" accept="audio/*" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setEditingAudio({ url: await readFile(f, 'audio'), name: f.name }); }} className="hidden" />
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={editingRecord.showOnHome} onChange={e => setEditingRecord({ ...editingRecord, showOnHome: e.target.checked })} />
+                  <span className="text-xs text-white/50">إظهار في الصفحة الرئيسية</span>
+                </label>
+                <div className="flex gap-2">
+                  <button onClick={saveEdit} className="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-gray-900 flex items-center justify-center gap-1"><Check size={13} /> حفظ</button>
+                  <button onClick={() => { setEditingRecord(null); setEditingAudio(null); }} className="flex-1 py-2 rounded-lg text-xs font-bold bg-white/10 text-white flex items-center justify-center gap-1"><X size={13} /> إلغاء</button>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-medium text-sm truncate">{r.title}</p>
-                <p className="text-xs text-white/30">{r.section}</p>
-              </div>
-              <button onClick={() => setRecords(prev => prev.map(x => x.id === r.id ? { ...x, isDeleted: true } : x))} className="p-1.5 rounded-lg hover:bg-white/10">
-                <Trash2 size={13} className="text-red-400" />
-              </button>
-            </div>
-            <audio src={r.audioUrl} controls className="w-full" style={{ height: 32 }} />
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                    <Mic size={16} className="text-red-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium text-sm truncate">{r.title}</p>
+                    <p className="text-xs text-white/30">{sections.find(s => s.id === r.sectionId)?.title || r.section}</p>
+                  </div>
+                  <button onClick={() => startEdit(r)} className="p-1.5 rounded-lg hover:bg-white/10"><Edit3 size={13} className="text-white/50" /></button>
+                  <button onClick={() => setRecords(prev => prev.map(x => x.id === r.id ? { ...x, isDeleted: true } : x))} className="p-1.5 rounded-lg hover:bg-white/10">
+                    <Trash2 size={13} className="text-red-400" />
+                  </button>
+                </div>
+                <audio src={r.audioUrl} controls className="w-full" style={{ height: 32 }} />
+              </>
+            )}
           </motion.div>
         ))}
       </div>
@@ -498,6 +579,9 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
   const [fileType, setFileType] = useState<FileItem['fileType']>('pdf');
   const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string } | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [editingFile, setEditingFile] = useState<FileItem | null>(null);
+  const [editingUpload, setEditingUpload] = useState<{ url: string; name: string } | null>(null);
+  const activeSections = sections.filter(s => !s.isDeleted);
   const activeFiles = files.filter(f => !f.isDeleted);
   const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
   const fileAccept: Record<string, string> = { pdf: '.pdf', word: '.doc,.docx', excel: '.xls,.xlsx', ppt: '.ppt,.pptx', zip: '.zip,.rar' };
@@ -509,6 +593,14 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
       isDeleted: false, allowDownload: true, attachments,
     }]);
     setTitle(''); setUploadedFile(null); setAttachments([]);
+  };
+  const startEdit = (f: FileItem) => { setEditingFile(f); setEditingUpload(null); };
+  const saveEdit = () => {
+    if (!editingFile) return;
+    setFiles(prev => prev.map(f => f.id === editingFile.id
+      ? { ...editingFile, fileUrl: editingUpload?.url || editingFile.fileUrl, fileName: editingUpload?.name || editingFile.fileName }
+      : f));
+    setEditingFile(null); setEditingUpload(null);
   };
   return (
     <div>
@@ -530,7 +622,7 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
           <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 mb-3" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
             <File size={24} className="text-white/40" />
             <span className="text-xs text-white/50">اختر ملف {fileTypeLabel[fileType]}</span>
-            <input type="file" accept={fileAccept[fileType]} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploadedFile({ url: await readFile(f), name: f.name }); }} className="hidden" />
+            <input type="file" accept={fileAccept[fileType]} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploadedFile({ url: await readFile(f, 'files'), name: f.name }); }} className="hidden" />
           </label>
         ) : (
           <div className="flex items-center gap-3 p-3 rounded-xl mb-3" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -539,6 +631,10 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
             <button onClick={() => setUploadedFile(null)}><X size={14} className="text-white/40" /></button>
           </div>
         )}
+        <select value={sectionId} onChange={e => setSectionId(Number(e.target.value))}
+          className="w-full px-4 py-2.5 rounded-xl text-white outline-none mb-2 text-sm" style={inp}>
+          {activeSections.map(s => <option key={s.id} value={s.id} style={{ background: '#0a0a1a' }}>{s.title}</option>)}
+        </select>
         <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="العنوان (اختياري)"
           className="w-full px-4 py-2.5 rounded-xl text-white placeholder-white/30 outline-none mb-2 text-sm" style={inp} />
         <AttachmentPicker attachments={attachments} onChange={setAttachments} onView={onMediaView} />
@@ -550,12 +646,44 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
       </div>
       <div className="space-y-2">
         {activeFiles.map(f => (
-          <div key={f.id} className="rounded-2xl p-3 flex items-center gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <span className="text-2xl flex-shrink-0">{fileTypeIcon[f.fileType]}</span>
-            <div className="flex-1 min-w-0"><p className="text-white font-medium text-sm truncate">{f.title}</p><p className="text-xs text-white/30">{fileTypeLabel[f.fileType]}</p></div>
-            <button onClick={() => setFiles(prev => prev.map(x => x.id === f.id ? { ...x, isDeleted: true } : x))} className="p-1.5 rounded-lg hover:bg-white/10 flex-shrink-0">
-              <Trash2 size={13} className="text-red-400" />
-            </button>
+          <div key={f.id} className="rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            {editingFile?.id === f.id ? (
+              <div className="space-y-2">
+                <input type="text" value={editingFile.title} onChange={e => setEditingFile({ ...editingFile, title: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg text-white outline-none text-sm" style={inp} />
+                <select value={editingFile.sectionId} onChange={e => setEditingFile({ ...editingFile, sectionId: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-lg text-white outline-none text-sm" style={inp}>
+                  {activeSections.map(s => <option key={s.id} value={s.id} style={{ background: '#0a0a1a' }}>{s.title}</option>)}
+                </select>
+                <div className="flex items-center gap-2 text-xs text-white/50 truncate">
+                  <span>{fileTypeIcon[editingFile.fileType]}</span> {editingUpload?.name || editingFile.fileName}
+                </div>
+                <label className="flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
+                  <UploadCloud size={12} /> استبدال الملف
+                  <input type="file" accept={fileAccept[editingFile.fileType]} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; setEditingUpload({ url: await readFile(nf, 'files'), name: nf.name }); }} className="hidden" />
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={editingFile.showOnHome} onChange={e => setEditingFile({ ...editingFile, showOnHome: e.target.checked })} />
+                  <span className="text-xs text-white/50">إظهار في الصفحة الرئيسية</span>
+                </label>
+                <div className="flex gap-2">
+                  <button onClick={saveEdit} className="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-gray-900 flex items-center justify-center gap-1"><Check size={13} /> حفظ</button>
+                  <button onClick={() => { setEditingFile(null); setEditingUpload(null); }} className="flex-1 py-2 rounded-lg text-xs font-bold bg-white/10 text-white flex items-center justify-center gap-1"><X size={13} /> إلغاء</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="text-2xl flex-shrink-0">{fileTypeIcon[f.fileType]}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-medium text-sm truncate">{f.title}</p>
+                  <p className="text-xs text-white/30">{fileTypeLabel[f.fileType]} · {sections.find(s => s.id === f.sectionId)?.title}</p>
+                </div>
+                <button onClick={() => startEdit(f)} className="p-1.5 rounded-lg hover:bg-white/10 flex-shrink-0"><Edit3 size={13} className="text-white/50" /></button>
+                <button onClick={() => setFiles(prev => prev.map(x => x.id === f.id ? { ...x, isDeleted: true } : x))} className="p-1.5 rounded-lg hover:bg-white/10 flex-shrink-0">
+                  <Trash2 size={13} className="text-red-400" />
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
