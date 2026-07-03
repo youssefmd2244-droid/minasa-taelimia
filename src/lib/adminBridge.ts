@@ -148,6 +148,28 @@ export function pushAppData(data: RawAdminData): void {
   }, 500);
 }
 
+/**
+ * يرفع نسخة جديدة من بيانات لوحة الإدارة فورًا (من غير أي تأخير/debounce)
+ * ويرجّع نتيجة حقيقية بنجاح العملية من عدمه — ده اللي بيستخدمه زرار
+ * "حفظ الآن" في الإعدادات عشان يقدر يأكّد للأدمن إن كل حاجة اتحفظت
+ * فعلاً بدل ما يفترض كده وهو مش متأكد.
+ */
+export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean; cloud: boolean }> {
+  if (pushDebounceTimer) { clearTimeout(pushDebounceTimer); pushDebounceTimer = null; }
+  if (!isSupabaseConfigured || !supabase) {
+    // وضع العرض التوضيحي — مفيش Supabase متصل، فالحفظ محلي بس (localStorage
+    // بالفعل بيتم أول ما تتغيّر أي حاجة). نرجّع نجاح "محلي" عشان الأدمن
+    // ياخد تأكيد واضح إن التغييرات محفوظة على الجهاز ده على الأقل.
+    return { ok: true, cloud: false };
+  }
+  try {
+    const { error } = await supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data });
+    return { ok: !error, cloud: true };
+  } catch {
+    return { ok: false, cloud: true };
+  }
+}
+
 let bridgeSyncStarted = false;
 
 /**
