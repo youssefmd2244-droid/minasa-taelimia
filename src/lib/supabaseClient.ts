@@ -15,8 +15,26 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+// ─────────────────────────────────────────────────────────────────────
+// ملاحظة مهمة عشان مشكلة "بعتّ التطبيق لحد وميظهرلوش الأقسام/المحتوى
+// اللي ضفته": متغيرات VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY بتتقرأ
+// وقت الـ build (مش وقت التشغيل)، فلو التطبيق اتصدّر/اتبنى (APK، ملف
+// مضغوط، نشر على استضافة تانية) من غير ملف .env.local موجود في نفس
+// اللحظة، الأدمن نفسه ممكن يفضل شغال عادي على جهازه (لأن عنده cache
+// محلي قديم)، لكن أي حد تاني ياخد النسخة دي هيشتغل في "وضع العرض
+// التوضيحي" (demo mode) وهيشوف بيانات ثابتة بس — مش الأقسام ولا
+// المحتوى الحقيقي اللي اتضاف على Supabase.
+//
+// الـ anon key هنا مفتاح "publishable" مخصص يُستخدم في كود الواجهة
+// الأمامية العلني أصلاً (مش سر)، فتثبيته كـ fallback آمن يضمن إن أي
+// نسخة من التطبيق (حتى لو اتبنت من غير .env.local) تتصل بنفس مشروع
+// Supabase المشترك دايماً، وبالتالي أي حد ياخد التطبيق يشوف نفس
+// الأقسام والمحتوى اللي ضفته بالظبط.
+const FALLBACK_SUPABASE_URL = 'https://naqjnxejjwcffuqunftq.supabase.co';
+const FALLBACK_SUPABASE_ANON_KEY = 'sb_publishable_1hJHJxJIjcg7Uiz7v3qiSg_amNAFGoQ';
+
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || FALLBACK_SUPABASE_URL;
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || FALLBACK_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
