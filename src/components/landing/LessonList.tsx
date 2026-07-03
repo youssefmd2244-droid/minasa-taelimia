@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { useContent } from '../../hooks/useContent';
 import type { ContentType } from '../../lib/supabaseClient';
+import ZoomableImage from '../ui/ZoomableImage';
+import VideoPlayer from '../ui/VideoPlayer';
 
 const TYPE_META: Record<ContentType, { icon: typeof FileText; color: string; label: string }> = {
   video: { icon: Video, color: '#6EB5FF', label: 'فيديو' },
@@ -42,13 +44,20 @@ interface LessonListProps {
   sectionId?: number;
   /** Optional cap on items shown (e.g. featured-only widgets). */
   limit?: number;
+  /**
+   * لو true، بيعرض فقط العناصر اللي الأدمن حدد لها "رئيسية" (show_on_home
+   * === true) — ده اللي بيمنع أي محتوى يتضاف في قسم من الظهور في
+   * الصفحة الرئيسية تلقائياً من غير ما حد يحدد إظهاره فيها فعلاً.
+   */
+  onlyShowOnHome?: boolean;
 }
 
-export default function LessonList({ sectionId, limit }: LessonListProps) {
+export default function LessonList({ sectionId, limit, onlyShowOnHome }: LessonListProps) {
   const { items, getSignedDownloadUrl } = useContent(sectionId);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
-  const visible = (limit ? items.slice(0, limit) : items).filter((i) => !i.is_deleted);
+  const filtered = items.filter((i) => !i.is_deleted && (!onlyShowOnHome || i.show_on_home));
+  const visible = limit ? filtered.slice(0, limit) : filtered;
 
   async function handleDownload(itemId: number, fileUrl: string | null) {
     if (!fileUrl) return;
@@ -94,17 +103,13 @@ export default function LessonList({ sectionId, limit }: LessonListProps) {
             {hasMediaPreview && (
               <div style={{ borderRadius: '10px', overflow: 'hidden', background: '#000' }}>
                 {item.type === 'image' ? (
-                  <img
+                  <ZoomableImage
                     src={item.file_url as string}
                     alt={item.title}
                     style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', display: 'block' }}
                   />
                 ) : (
-                  <video
-                    src={item.file_url as string}
-                    controls
-                    style={{ width: '100%', maxHeight: '260px', display: 'block' }}
-                  />
+                  <VideoPlayer src={item.file_url as string} maxHeight="260px" borderRadius="10px" />
                 )}
               </div>
             )}
