@@ -53,9 +53,72 @@ const LANG_OPTIONS: { code: Language; label: string }[] = [
   { code: 'en', label: 'EN' },
 ];
 
-function ContentRowItem({ item }: { item: ContentRow }) {
+function ContentCard({ item, gradient, onOpen }: { item: ContentRow; gradient: string; onOpen: () => void }) {
+  const isMedia = item.type === 'image' || item.type === 'video';
+  return (
+    <motion.button
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileTap={{ scale: 0.96 }}
+      onClick={onOpen}
+      style={{
+        position: 'relative', borderRadius: '16px', overflow: 'hidden',
+        border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)',
+        textAlign: 'start', cursor: 'pointer', display: 'flex', flexDirection: 'column', padding: 0,
+      }}
+    >
+      <div
+        style={{
+          position: 'relative', width: '100%', aspectRatio: '1 / 1', overflow: 'hidden',
+          background: isMedia ? '#000' : gradient, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        {item.type === 'image' && item.file_url && (
+          <img src={item.file_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
+        {item.type === 'video' && item.file_url && (
+          <>
+            <video src={item.file_url} muted preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.25)',
+            }}>
+              <div style={{
+                width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(255,255,255,0.18)',
+                backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Video size={17} color="white" />
+              </div>
+            </div>
+          </>
+        )}
+        {!isMedia && (
+          <div style={{ transform: 'scale(1.7)', opacity: 0.95 }}>
+            {TYPE_ICON[item.type] ?? <FileIcon size={20} color="white" />}
+          </div>
+        )}
+        {item.is_featured && (
+          <div style={{ position: 'absolute', top: 8, insetInlineEnd: 8 }}>
+            <Sparkles size={14} color="#facc15" />
+          </div>
+        )}
+      </div>
+      <div style={{ padding: '10px 12px 12px' }}>
+        <span style={{
+          color: 'white', fontSize: '12.5px', fontWeight: 600, lineHeight: 1.4,
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
+          {item.title}
+        </span>
+      </div>
+    </motion.button>
+  );
+}
+
+function ContentLightbox({ item, onClose }: { item: ContentRow; onClose: () => void }) {
   const { t } = useLanguage();
-  const [expanded, setExpanded] = useState(false);
   const isMedia = item.type === 'image' || item.type === 'video';
   const isAudio = item.type === 'audio';
   const isText = item.type === 'text';
@@ -63,93 +126,73 @@ function ContentRowItem({ item }: { item: ContentRow }) {
 
   return (
     <motion.div
-      layout
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
       style={{
-        borderRadius: '14px', background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden',
+        position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(3,3,10,0.92)',
+        backdropFilter: 'blur(6px)', display: 'flex', flexDirection: 'column',
       }}
     >
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
-          padding: '12px 14px', background: 'transparent', border: 'none',
-          cursor: 'pointer', textAlign: 'start',
-        }}
-      >
-        <div
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px' }}>
+        <button
+          onClick={onClose}
           style={{
-            width: '32px', height: '32px', borderRadius: '9px', flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(255,255,255,0.06)',
+            width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.15)', color: 'white', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
           }}
         >
-          {TYPE_ICON[item.type] ?? <FileIcon size={16} color="rgba(255,255,255,0.5)" />}
-        </div>
-        <span style={{ flex: 1, color: 'white', fontSize: '14px', fontWeight: 500 }}>{item.title}</span>
-        {item.is_featured && <Sparkles size={13} color="#facc15" style={{ flexShrink: 0 }} />}
-      </button>
-
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div style={{ padding: '0 14px 14px' }}>
-              {item.type === 'image' && item.file_url && (
-                <img src={item.file_url} alt={item.title} style={{ width: '100%', borderRadius: '10px', maxHeight: '320px', objectFit: 'contain', background: '#000' }} />
-              )}
-              {item.type === 'video' && item.file_url && (
-                <video src={item.file_url} controls style={{ width: '100%', borderRadius: '10px', maxHeight: '320px' }} />
-              )}
-              {isAudio && item.file_url && (
-                <audio src={item.file_url} controls style={{ width: '100%' }} />
-              )}
-              {isText && (
-                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '13px', lineHeight: 1.8, margin: 0 }}>
-                  {item.content_body || item.title}
-                </p>
-              )}
-              {isFile && (
-                item.file_url ? (
-                  item.allow_download ? (
-                    <a
-                      href={item.file_url}
-                      download={item.title}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                        padding: '9px 16px', borderRadius: '10px', background: 'rgba(255,255,255,0.1)',
-                        color: 'white', fontSize: '13px', fontWeight: 600, textDecoration: 'none',
-                      }}
-                    >
-                      <Download size={14} /> {t('content_download')}
-                    </a>
-                  ) : (
-                    <a
-                      href={item.file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                        padding: '9px 16px', borderRadius: '10px', background: 'rgba(255,255,255,0.1)',
-                        color: 'white', fontSize: '13px', fontWeight: 600, textDecoration: 'none',
-                      }}
-                    >
-                      <FileIcon size={14} /> {t('content_open_file')}
-                    </a>
-                  )
-                ) : (
-                  <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '12px', margin: 0 }}>{item.title}</p>
-                )
-              )}
-            </div>
-          </motion.div>
+          <X size={16} />
+        </button>
+      </div>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: '0 20px 30px', gap: '16px', overflowY: 'auto',
+        }}
+      >
+        <h3 style={{ color: 'white', fontSize: '17px', fontWeight: 700, textAlign: 'center', margin: 0 }}>{item.title}</h3>
+        {item.type === 'image' && item.file_url && (
+          <img src={item.file_url} alt={item.title} style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '14px', objectFit: 'contain' }} />
         )}
-      </AnimatePresence>
+        {item.type === 'video' && item.file_url && (
+          <video src={item.file_url} controls autoPlay style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '14px' }} />
+        )}
+        {isAudio && item.file_url && (
+          <audio src={item.file_url} controls style={{ width: '100%', maxWidth: '360px' }} />
+        )}
+        {isText && (
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', lineHeight: 1.9, maxWidth: '480px', textAlign: 'center', margin: 0 }}>
+            {item.content_body || item.title}
+          </p>
+        )}
+        {isFile && item.file_url && (
+          item.allow_download ? (
+            <a
+              href={item.file_url} download={item.title}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '11px 22px',
+                borderRadius: '12px', background: 'rgba(255,255,255,0.1)', color: 'white',
+                fontSize: '14px', fontWeight: 600, textDecoration: 'none',
+              }}
+            >
+              <Download size={15} /> {t('content_download')}
+            </a>
+          ) : (
+            <a
+              href={item.file_url} target="_blank" rel="noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '11px 22px',
+                borderRadius: '12px', background: 'rgba(255,255,255,0.1)', color: 'white',
+                fontSize: '14px', fontWeight: 600, textDecoration: 'none',
+              }}
+            >
+              <FileIcon size={15} /> {t('content_open_file')}
+            </a>
+          )
+        )}
+      </div>
     </motion.div>
   );
 }
@@ -161,25 +204,28 @@ export default function SectionsExplorer({ open, onClose }: SectionsExplorerProp
   const { items, loading: contentLoading } = useContent(activeSectionId ?? undefined);
   const [query, setQuery] = useState('');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [lightboxItem, setLightboxItem] = useState<ContentRow | null>(null);
 
   useEffect(() => {
-    if (open) { setActiveSectionId(null); setQuery(''); }
+    if (open) { setActiveSectionId(null); setQuery(''); setLightboxItem(null); }
   }, [open]);
 
   useEffect(() => {
     setQuery('');
+    setLightboxItem(null);
   }, [activeSectionId]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (activeSectionId !== null) setActiveSectionId(null);
+      if (lightboxItem) setLightboxItem(null);
+      else if (activeSectionId !== null) setActiveSectionId(null);
       else onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, activeSectionId, onClose]);
+  }, [open, activeSectionId, lightboxItem, onClose]);
 
   const visibleSections = sections
     .filter((s) => s.is_visible)
@@ -366,11 +412,22 @@ export default function SectionsExplorer({ open, onClose }: SectionsExplorerProp
                 {query ? t('sections_search_empty') : t('sections_content_empty')}
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {visibleItems.map((item) => <ContentRowItem key={item.id} item={item} />)}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+                {visibleItems.map((item, i) => (
+                  <ContentCard
+                    key={item.id}
+                    item={item}
+                    gradient={SECTION_GRADIENTS[i % SECTION_GRADIENTS.length]}
+                    onOpen={() => setLightboxItem(item)}
+                  />
+                ))}
               </div>
             )}
           </div>
+
+          <AnimatePresence>
+            {lightboxItem && <ContentLightbox item={lightboxItem} onClose={() => setLightboxItem(null)} />}
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
