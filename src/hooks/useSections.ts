@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured, type SectionRow } from '../lib/supabaseClient';
 import { getBridgedSections, shouldUseAdminBridge, subscribeAdminData } from '../lib/adminBridge';
+import { genId } from '../utils/id';
 
 const DEMO_SECTIONS: SectionRow[] = [
   { id: 1, title: 'الرياضيات — المستوى الأول', is_visible: true, is_deleted: false, deleted_at: null, display_order: 1 },
@@ -84,7 +85,7 @@ export function useSections() {
     if (!isSupabaseConfigured || !supabase) {
       setSections((prev) => [
         ...prev,
-        { id: Date.now(), title, is_visible: true, is_deleted: false, deleted_at: null, display_order: prev.length + 1 },
+        { id: genId(), title, is_visible: true, is_deleted: false, deleted_at: null, display_order: prev.length + 1 },
       ]);
       return;
     }
