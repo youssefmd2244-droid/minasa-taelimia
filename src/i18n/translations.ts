@@ -191,6 +191,8 @@ export const translations = {
     // Sections Explorer (شريط الأقسام العلوي)
     nav_sections: 'الأقسام',
     sections_open: 'تصفح الأقسام',
+    share_app: 'مشاركة التطبيق',
+    share_app_copied: 'تم نسخ رابط التطبيق',
     sections_modal_title: 'الأقسام',
     sections_modal_empty: 'لا توجد أقسام بعد',
     sections_back: 'رجوع للأقسام',
@@ -381,6 +383,8 @@ export const translations = {
     // Sections Explorer (top sections bar)
     nav_sections: 'Sections',
     sections_open: 'Browse sections',
+    share_app: 'Share app',
+    share_app_copied: 'App link copied',
     sections_modal_title: 'Sections',
     sections_modal_empty: 'No sections yet',
     sections_back: 'Back to sections',
@@ -571,6 +575,8 @@ export const translations = {
     // Sections Explorer (شريط الأقسام اللي فوق)
     nav_sections: 'الأقسام',
     sections_open: 'تصفح الأقسام',
+    share_app: 'مشاركة التطبيق',
+    share_app_copied: 'اتنسخ رابط التطبيق',
     sections_modal_title: 'الأقسام',
     sections_modal_empty: 'مفيش أقسام لسه',
     sections_back: 'رجوع للأقسام',
