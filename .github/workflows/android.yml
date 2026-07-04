@@ -32,6 +32,44 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Fix FileProvider (share crash)
+        run: |
+          set -e
+          XML_DIR="android/app/src/main/res/xml"
+          mkdir -p "$XML_DIR"
+          cat > "$XML_DIR/file_paths.xml" << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <paths xmlns:android="http://schemas.android.com/apk/res/android">
+              <cache-path name="cache" path="." />
+              <files-path name="files" path="." />
+              <external-path name="external_files" path="." />
+              <external-cache-path name="external_cache" path="." />
+          </paths>
+          EOF
+
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ] && ! grep -q "fileprovider" "$MANIFEST"; then
+            python3 - << 'PYEOF'
+          path = "android/app/src/main/AndroidManifest.xml"
+          with open(path, "r", encoding="utf-8") as f:
+              content = f.read()
+          provider = (
+              '        <provider\n'
+              '            android:name="androidx.core.content.FileProvider"\n'
+              '            android:authorities="${applicationId}.fileprovider"\n'
+              '            android:exported="false"\n'
+              '            android:grantUriPermissions="true">\n'
+              '            <meta-data\n'
+              '                android:name="android.support.FILE_PROVIDER_PATHS"\n'
+              '                android:resource="@xml/file_paths" />\n'
+              '        </provider>\n'
+          )
+          content = content.replace("</application>", provider + "    </application>")
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(content)
+          PYEOF
+          fi
+
       - name: Fix Kotlin duplicate classes in build.gradle
         run: |
           GRADLE_FILE="android/app/build.gradle"
