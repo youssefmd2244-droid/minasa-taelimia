@@ -260,3 +260,15 @@ body {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #050510; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+/* ===== Responsive top nav ===== */
+/* على الشاشات الضيقة، الأيقونات + شارة "ابدأ مجاناً" كانوا بياخدوا مساحة
+   أكبر من عرض الشاشة فتقطع الشارة من الحافة. بنصغّرهم تدريجيًا هنا. */
+@media (max-width: 420px) {
+  .nav-actions { gap: 6px !important; }
+  .nav-start-badge { padding: 6px 12px !important; font-size: 11px !important; }
+}
+@media (max-width: 360px) {
+  .nav-actions { gap: 4px !important; }
+  .nav-start-badge { padding: 5px 10px !important; font-size: 10px !important; }
+}
