@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Settings, Search as SearchIcon, BookOpen, Share2 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
@@ -138,13 +140,35 @@ function AppContent() {
   const apkDownloadUrl = `${window.location.origin}${APK_URL}`;
 
   const handleShareApp = async () => {
+    // التطبيق المثبّت على الموبايل بيشتغل جوه WebView أندرويد، وده
+    // مش بيدعم navigator.share (Web Share API) خالص — عشان كده كانت
+    // بترجع دايماً لبديل "نسخ الرابط" حتى لو اتنسخ صح. فلازم نستخدم
+    // بلجن Capacitor الأصلي (Share) هو اللي بيفتح قائمة المشاركة
+    // الحقيقية بتاعة أندرويد (واتساب، تليجرام، إلخ) لما نكون جوه
+    // التطبيق المثبّت فعلاً.
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await Share.share({
+          title: 'EDUVERSE',
+          text: t('nav_start'),
+          url: apkDownloadUrl,
+          dialogTitle: t('share_app'),
+        });
+        return;
+      } catch {
+        // المستخدم لغى نافذة المشاركة — منعملش حاجة تانية
+        return;
+      }
+    }
+
+    // لو التطبيق شغال كموقع عادي في متصفح (مش جوه النسخة المثبّتة)
+    // بنستخدم Web Share API العادية بنفس الترتيب اللي كان شغال قبل كده.
     const dummyFile = new File([new Uint8Array(1)], APK_FILENAME, {
       type: 'application/vnd.android.package-archive',
     });
     const canShareApkFile =
       typeof navigator.canShare === 'function' && navigator.canShare({ files: [dummyFile] });
 
-    // 1) لو المتصفح فعلاً بيقبل مشاركة ملف APK كملف حقيقي — نجرّب كده.
     if (navigator.share && canShareApkFile) {
       try {
         const res = await fetch(APK_URL);
@@ -155,25 +179,19 @@ function AppContent() {
           return;
         }
       } catch {
-        // المستخدم لغى نافذة المشاركة أو حصل خطأ في تجهيز الملف —
-        // نكمل على مشاركة رابط التحميل المباشر تحت من غير ما نوقف
+        // نكمل على البديل تحت
       }
     }
 
-    // 2) البديل الأساسي (وده اللي هيشتغل في أغلب الحالات فعلياً):
-    //    مشاركة رابط تحميل مباشر لملف الـ APK نفسه — مش رابط الموقع
-    //    العادي — عشان اللي يستلمه يدوس عليه والملف ينزله على طول.
     if (navigator.share) {
       try {
         await navigator.share({ title: 'EDUVERSE', text: t('nav_start'), url: apkDownloadUrl });
         return;
       } catch {
-        // المستخدم لغى نافذة المشاركة، أو navigator.share مش مسموح
-        // هنا — نكمل على النسخ/العرض كملاذ أخير تحت
+        // نكمل على البديل تحت
       }
     }
 
-    // 3) آخر حل مضمون — دايماً بيدّي المستخدم رد فعل واضح مش "مفيش حاجة"
     try {
       await navigator.clipboard.writeText(apkDownloadUrl);
       window.alert(t('share_app_copied'));
