@@ -74,9 +74,13 @@ jobs:
         run: |
           GRADLE_FILE="android/app/build.gradle"
           if [ -f "$GRADLE_FILE" ]; then
-            # Add kotlin stdlib resolution strategy
-            if ! grep -q "kotlin-stdlib" "$GRADLE_FILE"; then
-              sed -i '/^android {/a\    configurations.all {\n        resolutionStrategy {\n            force "org.jetbrains.kotlin:kotlin-stdlib:1.9.25"\n            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.25"\n            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.25"\n        }\n    }' "$GRADLE_FILE"
+            # لا تُثبِّت kotlin-stdlib على إصدار قديم (ده كان بيسبب اختفاء
+            # كلاسات داخلية زي kotlin.coroutines.jvm.internal.SpillingKt
+            # ويطيّح أي عملية Filesystem/Share تستخدم coroutines).
+            # بدل كده، بنستبعد وحدتي jdk7/jdk8 القديمتين المكرَّرتين فقط
+            # ونسيب kotlin-stdlib الأساسية تتحل بأحدث إصدار مطلوب طبيعيًا.
+            if ! grep -q "kotlin-stdlib-jdk7" "$GRADLE_FILE"; then
+              sed -i '/^android {/a\    configurations.all {\n        exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk7"\n        exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk8"\n    }' "$GRADLE_FILE"
             fi
           fi
 
@@ -90,7 +94,6 @@ jobs:
           cat >> "$PROPS" << 'EOF'
           android.useAndroidX=true
           android.enableJetifier=true
-          kotlin.stdlib.default.dependency=false
           org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
           org.gradle.daemon=false
           EOF
