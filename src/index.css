@@ -263,12 +263,24 @@ body {
 
 /* ===== Responsive top nav ===== */
 /* على الشاشات الضيقة، الأيقونات + شارة "ابدأ مجاناً" كانوا بياخدوا مساحة
-   أكبر من عرض الشاشة فتقطع الشارة من الحافة. بنصغّرهم تدريجيًا هنا. */
-@media (max-width: 420px) {
-  .nav-actions { gap: 6px !important; }
-  .nav-start-badge { padding: 6px 12px !important; font-size: 11px !important; }
+   أكبر من عرض الشاشة، فالشارة كانت بتتقطع من حافة الشاشة. الحل الأضمن:
+   نخلي صف الأزرار يلف (wrap) بحيث الشارة تنزل تحت في سطر لوحدها بدل ما
+   تتقطع، مهما كان عرض الشاشة. */
+@media (max-width: 480px) {
+  .nav-actions {
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+    row-gap: 8px !important;
+    gap: 6px !important;
+    max-width: 100%;
+  }
+  .nav-start-badge {
+    flex-basis: 100%;
+    text-align: center;
+    padding: 7px 16px !important;
+    font-size: 12px !important;
+  }
 }
 @media (max-width: 360px) {
   .nav-actions { gap: 4px !important; }
-  .nav-start-badge { padding: 5px 10px !important; font-size: 10px !important; }
 }
