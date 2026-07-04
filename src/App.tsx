@@ -320,7 +320,7 @@ function AppContent() {
               ))}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               onClick={() => setShowSections(true)}
               title={t('sections_open')}
@@ -351,7 +351,7 @@ function AppContent() {
               <Settings size={16} className="gear-spin" />
             </button>
             <LanguageSwitcher />
-            <a href="#start" style={{ padding: '8px 20px', borderRadius: '999px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', fontWeight: 600, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.12)', transition: 'background 200ms' }}
+            <a href="#start" className="nav-start-badge" style={{ padding: '8px 20px', borderRadius: '999px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', fontWeight: 600, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.12)', transition: 'background 200ms', whiteSpace: 'nowrap' }}
               onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.18)')}
               onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.1)')}>
               {t('nav_start')}
