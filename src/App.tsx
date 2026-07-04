@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Settings, Search as SearchIcon, BookOpen, Share2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
@@ -45,6 +46,20 @@ function PasswordGate({ onEnter }: { onEnter: () => void }) {
       </motion.div>
     </div>
   );
+}
+
+// بيحول ملف (Blob) لنص base64 عادي (من غير بادئة "data:...;base64,")
+// عشان نقدر نكتبه كملف حقيقي على تخزين الجهاز عن طريق Filesystem.
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1] ?? '');
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 function AppContent() {
@@ -140,23 +155,35 @@ function AppContent() {
   const apkDownloadUrl = `${window.location.origin}${APK_URL}`;
 
   const handleShareApp = async () => {
-    // التطبيق المثبّت على الموبايل بيشتغل جوه WebView أندرويد، وده
-    // مش بيدعم navigator.share (Web Share API) خالص — عشان كده كانت
-    // بترجع دايماً لبديل "نسخ الرابط" حتى لو اتنسخ صح. فلازم نستخدم
-    // بلجن Capacitor الأصلي (Share) هو اللي بيفتح قائمة المشاركة
-    // الحقيقية بتاعة أندرويد (واتساب، تليجرام، إلخ) لما نكون جوه
-    // التطبيق المثبّت فعلاً.
+    // التطبيق المثبّت على الموبايل بيشتغل جوه WebView أندرويد، وده مش
+    // بيدعم navigator.share خالص، وكمان لو شاركنا رابط زي
+    // "https://localhost/app-release.apk" مش هيفتح عند حد تاني — لأن
+    // "localhost" هنا معناها "التطبيق نفسه جوه الجهاز ده بس"، مش سيرفر
+    // حقيقي على الإنترنت. عشان كده بدل ما نشارك رابط، بناخد ملف الـ
+    // APK المرفق جوه التطبيق نفسه ونكتبه كملف حقيقي على تخزين الجهاز
+    // (Filesystem)، وبعدين نشاركه كملف فعلي (مش رابط) عن طريق أندرويد
+    // — وده اللي هيخلّي واتساب/تليجرام يبعتوا الملف الحقيقي القابل
+    // للتثبيت لأي حد.
     if (Capacitor.isNativePlatform()) {
       try {
+        const res = await fetch(APK_URL);
+        const blob = await res.blob();
+        const base64 = await blobToBase64(blob);
+        const written = await Filesystem.writeFile({
+          path: APK_FILENAME,
+          directory: Directory.Cache,
+          data: base64,
+        });
         await Share.share({
           title: 'EDUVERSE',
           text: t('nav_start'),
-          url: apkDownloadUrl,
           dialogTitle: t('share_app'),
+          files: [written.uri],
         });
         return;
-      } catch {
-        // المستخدم لغى نافذة المشاركة — منعملش حاجة تانية
+      } catch (err) {
+        if ((err as { message?: string })?.message?.toLowerCase().includes('cancel')) return;
+        window.alert(t('share_app_failed'));
         return;
       }
     }
