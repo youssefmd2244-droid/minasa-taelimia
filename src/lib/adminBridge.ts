@@ -225,8 +225,10 @@ const MEDIA_BUCKET = 'eduverse-media';
  * الرفع فشل أو Supabase مش متصل بيرجع null، وAdminDashboard.tsx بيرجع
  * تلقائيًا لتشفير base64 المحلي بدل ما يوقف الأدمن.
  */
-export async function uploadMediaFile(file: File, folder: string = 'misc'): Promise<string | null> {
-  if (!isSupabaseConfigured || !supabase) return null;
+export interface UploadResult { url: string | null; error?: string }
+
+export async function uploadMediaFile(file: File, folder: string = 'misc'): Promise<UploadResult> {
+  if (!isSupabaseConfigured || !supabase) return { url: null };
   try {
     const safeName = file.name.replace(/[^\w.\-]+/g, '_');
     const path = `${folder}/${Date.now()}_${safeName}`;
@@ -235,12 +237,16 @@ export async function uploadMediaFile(file: File, folder: string = 'misc'): Prom
       upsert: true,
       contentType: file.type || undefined,
     });
-    if (error) { console.error('[adminBridge] upload failed:', error.message); return null; }
+    if (error) {
+      console.error('[adminBridge] upload failed:', error.message);
+      return { url: null, error: error.message };
+    }
     const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
-    return data.publicUrl || null;
+    return { url: data.publicUrl || null };
   } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
     console.error('[adminBridge] upload exception:', e);
-    return null;
+    return { url: null, error: message };
   }
 }
 
