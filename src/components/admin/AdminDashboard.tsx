@@ -102,8 +102,14 @@ async function saveDataNow(data: AdminData): Promise<{ ok: boolean; cloud: boole
 }
 
 const readFile = async (file: File, folder: string = 'misc'): Promise<string> => {
-  const uploaded = await uploadMediaFile(file, folder);
-  if (uploaded) return uploaded;
+  const result = await uploadMediaFile(file, folder);
+  if (result.url) return result.url;
+  if (result.error) {
+    // بيوريك سبب فشل الرفع الحقيقي فورًا (بدل ما يفضل يترفع محليًا بصمت
+    // وتكتشف المشكلة بس وانت بتحفظ لاحقًا). كده تقدر تبعتلي نص الرسالة
+    // بالظبط وأعرف أظبط الصلاحيات/الـ bucket على طول.
+    window.alert(`تنبيه: فشل رفع الملف على التخزين السحابي وهيتحفظ محليًا مؤقتًا بدل كده.\n\nسبب الفشل: ${result.error}\n\nابعت النص ده لو محتاج مساعدة.`);
+  }
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
 };
 
