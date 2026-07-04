@@ -166,19 +166,56 @@ function AppContent() {
     // للتثبيت لأي حد.
     if (Capacitor.isNativePlatform()) {
       try {
-        const res = await fetch(APK_URL);
-        const blob = await res.blob();
-        const base64 = await blobToBase64(blob);
-        const written = await Filesystem.writeFile({
-          path: APK_FILENAME,
-          directory: Directory.Cache,
-          data: base64,
-        });
+        // لو كتبنا الملف قبل كده على الجهاز (من مشاركة سابقة)، بنشاركه
+        // على طول من غير ما نعيد التحميل/الكتابة التقيلة تاني.
+        let fileUri: string | null = null;
+        try {
+          const stat = await Filesystem.stat({ path: APK_FILENAME, directory: Directory.Cache });
+          if (stat && stat.size > 0) {
+            const existing = await Filesystem.getUri({ path: APK_FILENAME, directory: Directory.Cache });
+            fileUri = existing.uri;
+          }
+        } catch {
+          // الملف مش موجود لسه، هنكتبه تحت.
+        }
+
+        if (!fileUri) {
+          const res = await fetch(APK_URL);
+          const blob = await res.blob();
+          const base64 = await blobToBase64(blob);
+
+          // مهم جداً: ممنوع نبعت الـ base64 كله (~١٦ ميجا حرف) دفعة واحدة
+          // عبر جسر Capacitor (bridge) — ده اللي كان بيسبب "هنج" (ANR)
+          // يخلي أندرويد يقفل التطبيق بالقوة على الأجهزة الأضعف. بدل كده
+          // بنقسّمه لأجزاء صغيرة (لازم يكون حجم كل جزء من مضاعفات ٤ عشان
+          // فك تشفير base64 يفضل صحيح) ونكتبها بالتتابع.
+          const CHUNK_SIZE = 300_000; // ~225 كيلوبايت فعلية لكل جزء
+          const firstChunk = base64.slice(0, CHUNK_SIZE);
+          const written = await Filesystem.writeFile({
+            path: APK_FILENAME,
+            directory: Directory.Cache,
+            data: firstChunk,
+            recursive: true,
+          });
+          fileUri = written.uri;
+
+          for (let offset = CHUNK_SIZE; offset < base64.length; offset += CHUNK_SIZE) {
+            const chunk = base64.slice(offset, offset + CHUNK_SIZE);
+            await Filesystem.appendFile({
+              path: APK_FILENAME,
+              directory: Directory.Cache,
+              data: chunk,
+            });
+            // فرصة صغيرة لخيط الواجهة يتنفس بين كل جزء وجزء.
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        }
+
         await Share.share({
           title: 'EDUVERSE',
           text: t('nav_start'),
           dialogTitle: t('share_app'),
-          files: [written.uri],
+          files: [fileUri as string],
         });
         return;
       } catch (err) {
