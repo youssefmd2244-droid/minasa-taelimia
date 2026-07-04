@@ -95,7 +95,7 @@ function saveData(data: AdminData) {
  * نتيجة حقيقية (نجح ولا فشل، ومحلي ولا على السحابة) بدل ما تفترض
  * النجاح زي saveData العادية (اللي بتتنفذ تلقائيًا مع كل تغيير).
  */
-async function saveDataNow(data: AdminData): Promise<{ ok: boolean; cloud: boolean }> {
+async function saveDataNow(data: AdminData): Promise<{ ok: boolean; cloud: boolean; message?: string }> {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); if (navigator.storage?.persist) navigator.storage.persist(); } catch {}
   notifyAdminDataChanged();
   return pushAppDataNow(data);
@@ -838,12 +838,12 @@ function TrashTab({ sections, setSections, content, setContent, records, setReco
 }
 
 /* ─── Settings Tab ─── */
-function SettingsTab({ appName, setAppName, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange, onSaveNow, saveStatus, saveWasCloud }: {
+function SettingsTab({ appName, setAppName, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange, onSaveNow, saveStatus, saveWasCloud, saveErrorMessage }: {
   appName: string; setAppName: (v: string) => void; themeColors: string[]; setThemeColors: (v: string[]) => void;
   maintenanceMode: boolean; setMaintenanceMode: (v: boolean) => void; rgbLighting: boolean; setRgbLighting: (v: boolean) => void;
   notifications: boolean; setNotifications: (v: boolean) => void; downloadFeatureEnabled: boolean; setDownloadFeatureEnabled: (v: boolean) => void;
   onPasswordChange?: (pw: string) => void;
-  onSaveNow: () => void; saveStatus: 'idle' | 'saving' | 'saved' | 'error'; saveWasCloud: boolean;
+  onSaveNow: () => void; saveStatus: 'idle' | 'saving' | 'saved' | 'error'; saveWasCloud: boolean; saveErrorMessage: string | null;
 }) {
   const [newPassword, setNewPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState('');
   const [authCode, setAuthCode] = useState(''); const [showPw, setShowPw] = useState(false);
@@ -884,6 +884,9 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
           {saveStatus === 'error' && <><AlertCircle size={15} /> فشل الحفظ — تحقق من الاتصال بالإنترنت</>}
           {saveStatus === 'idle' && <><Save size={15} /> حفظ كل التغييرات الآن</>}
         </button>
+        {saveStatus === 'error' && saveErrorMessage && (
+          <p className="text-[11px] mt-2 text-center" style={{ color: '#fca5a5', direction: 'ltr' }}>{saveErrorMessage}</p>
+        )}
       </div>
       {/* App name */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -992,15 +995,18 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
   // متصل) ويرجّع تأكيد حقيقي بدل انتظار الحفظ التلقائي المؤجَّل بصمت.
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveWasCloud, setSaveWasCloud] = useState(false);
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
   const handleSaveNow = useCallback(async () => {
     setSaveStatus('saving');
+    setSaveErrorMessage(null);
     const result = await saveDataNow({
       appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled,
       sections, contentItems, records, files, comments,
     });
     setSaveWasCloud(result.cloud);
     setSaveStatus(result.ok ? 'saved' : 'error');
-    setTimeout(() => setSaveStatus('idle'), 3500);
+    if (!result.ok) setSaveErrorMessage(result.message || 'خطأ غير معروف');
+    setTimeout(() => setSaveStatus('idle'), result.ok ? 3500 : 8000);
   }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments]);
 
   // عند فتح لوحة الإدارة أول مرة على أي جهاز، نسحب أحدث نسخة حقيقية من
@@ -1137,7 +1143,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             {activeTab === 'analytics' && <AnalyticsTab comments={comments} content={contentItems} records={records} files={files} />}
             {activeTab === 'trash' && <TrashTab sections={sections} setSections={setSections} content={contentItems} setContent={setContentItems} records={records} setRecords={setRecords} files={files} setFiles={setFiles} />}
             {activeTab === 'display' && <DisplayScreen />}
-            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} />}
+            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} />}
 
           </motion.div>
         </AnimatePresence>
@@ -1146,7 +1152,16 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
       {/* زرار حفظ ثابت وظاهر في كل التابات (مش بس جوه الإعدادات) — عشان
           تقدر تأكّد إن أي إضافة أو تعديل اتحفظ فعلاً من غير ما تدوّر
           عليه في مكان تاني. */}
-      <div style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 400, display: 'flex', justifyContent: 'center', padding: '10px 16px calc(10px + env(safe-area-inset-bottom))', pointerEvents: 'none' }}>
+      <div style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '10px 16px calc(10px + env(safe-area-inset-bottom))', pointerEvents: 'none' }}>
+        {saveStatus === 'error' && saveErrorMessage && (
+          <div style={{
+            pointerEvents: 'auto', maxWidth: '92vw', padding: '7px 14px', borderRadius: '10px',
+            background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)',
+            color: '#fca5a5', fontSize: '11.5px', textAlign: 'center', direction: 'ltr',
+          }}>
+            {saveErrorMessage}
+          </div>
+        )}
         <button
           onClick={handleSaveNow}
           disabled={saveStatus === 'saving'}
