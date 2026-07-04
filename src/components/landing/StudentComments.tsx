@@ -1,71 +1,62 @@
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { Send, ThumbsUp, MessageCircle } from 'lucide-react';
-
-interface Comment {
-  id: number;
-  name: string;
-  phone: string;
-  avatar: string;
-  text: string;
-  time: string;
-  likes: number;
-  liked: boolean;
-  replies: Reply[];
-}
-
-interface Reply {
-  id: number;
-  name: string;
-  text: string;
-  time: string;
-}
-
-const INITIAL_COMMENTS: Comment[] = [
-  { id: 1, name: 'أحمد علي', phone: '01000000001', avatar: '🧑‍🎓', text: 'المنصة دي رائعة جداً! الشرح واضح والمحتوى ممتاز.', time: 'منذ ٢ ساعة', likes: 12, liked: false, replies: [{ id: 1, name: 'EDUVERSE', text: 'شكراً يا أحمد! سعيدين بتجربتك ❤️', time: 'منذ ١ ساعة' }] },
-  { id: 2, name: 'سارة محمد', phone: '01000000002', avatar: '👩‍🎓', text: 'الكورسات منظمة وسهل التنقل بينها. استفدت كتير من الرياضيات!', time: 'منذ ٥ ساعات', likes: 8, liked: false, replies: [] },
-  { id: 3, name: 'عمر حسن', phone: '01000000003', avatar: '👨‍💻', text: 'تطبيق ممتاز وسريع. بس كنت عايز فيديوهات أكتر في قسم العلوم.', time: 'منذ يوم', likes: 5, liked: false, replies: [] },
-];
+import { Send, ThumbsUp, Clock } from 'lucide-react';
+import {
+  fetchVisibleComments,
+  submitComment,
+  subscribeComments,
+  type PublicCommentRow,
+} from '../../lib/commentsBridge';
 
 export default function StudentComments() {
   const { dir } = useLanguage();
-  const [comments, setComments] = useState<Comment[]>(INITIAL_COMMENTS);
+  const [comments, setComments] = useState<PublicCommentRow[]>([]);
+  const [likedIds, setLikedIds] = useState<number[]>([]);
   const [newText, setNewText] = useState('');
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [error, setError] = useState('');
-  const [replyingTo, setReplyingTo] = useState<number | null>(null);
-  const [replyText, setReplyText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const isValidPhone = (phone: string) => /^01[0-9]{9}$/.test(phone.trim());
 
-  const addComment = () => {
+  const refresh = useCallback(() => {
+    fetchVisibleComments().then(setComments);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    // يسمع لأي موافقة/تعليق جديد فورًا بدون إعادة تحميل الصفحة
+    const unsubscribe = subscribeComments(refresh);
+    return unsubscribe;
+  }, [refresh]);
+
+  const addComment = async () => {
+    if (submitting) return;
     if (!newName.trim()) { setError(dir === 'rtl' ? 'من فضلك اكتب اسمك' : 'Please enter your name'); return; }
     if (!isValidPhone(newPhone)) { setError(dir === 'rtl' ? 'رقم الهاتف غير صحيح (مثال: 01012345678)' : 'Invalid phone number (e.g. 01012345678)'); return; }
     if (!newText.trim()) { setError(dir === 'rtl' ? 'من فضلك اكتب تعليقك' : 'Please write your comment'); return; }
     setError('');
-    setComments((prev) => [{
-      id: Date.now(), name: newName.trim(), phone: newPhone.trim(), avatar: '👤',
-      text: newText.trim(), time: 'الآن', likes: 0, liked: false, replies: [],
-    }, ...prev]);
+    setSubmitting(true);
+    const result = await submitComment(newName, newPhone, newText);
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(dir === 'rtl' ? 'تعذّر إرسال التعليق، حاول مرة أخرى' : 'Could not send comment, please try again');
+      return;
+    }
     setNewText(''); setNewName(''); setNewPhone('');
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 5000);
   };
 
   const toggleLike = (id: number) => {
-    setComments((prev) => prev.map((c) =>
-      c.id === id ? { ...c, liked: !c.liked, likes: c.liked ? c.likes - 1 : c.likes + 1 } : c
-    ));
+    setLikedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  const addReply = (commentId: number) => {
-    if (!replyText.trim()) return;
-    setComments((prev) => prev.map((c) =>
-      c.id === commentId
-        ? { ...c, replies: [...c.replies, { id: Date.now(), name: 'طالب', text: replyText.trim(), time: 'الآن' }] }
-        : c
-    ));
-    setReplyText(''); setReplyingTo(null);
+  const formatTime = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString(dir === 'rtl' ? 'ar-EG' : 'en-US'); } catch { return ''; }
   };
 
   return (
@@ -99,6 +90,11 @@ export default function StudentComments() {
           {error && (
             <p style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px', textAlign: dir === 'rtl' ? 'right' : 'left' }}>{error}</p>
           )}
+          {submitted && (
+            <p style={{ color: '#6BBF7A', fontSize: '12px', marginBottom: '10px', textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+              {dir === 'rtl' ? '✅ تم إرسال تعليقك! سيظهر للجميع بعد مراجعته من الإدارة.' : '✅ Comment sent! It will appear after review.'}
+            </p>
+          )}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
             <textarea
               value={newText} onChange={(e) => setNewText(e.target.value)}
@@ -107,7 +103,8 @@ export default function StudentComments() {
               style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '12px 16px', color: 'white', fontSize: '14px', outline: 'none', resize: 'none', textAlign: dir === 'rtl' ? 'right' : 'left' }}
               onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) addComment(); }}
             />
-            <button onClick={addComment} style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#f97316', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <button onClick={addComment} disabled={submitting}
+              style={{ width: '48px', height: '48px', borderRadius: '12px', background: submitting ? 'rgba(249,115,22,0.5)' : '#f97316', border: 'none', color: 'white', cursor: submitting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Send size={18} />
             </button>
           </div>
@@ -116,6 +113,11 @@ export default function StudentComments() {
         {/* Comments List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <AnimatePresence>
+            {comments.length === 0 && (
+              <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>
+                {dir === 'rtl' ? 'لا توجد تعليقات بعد — كن أول من يشارك رأيه!' : 'No comments yet — be the first to share!'}
+              </p>
+            )}
             {comments.map((comment) => (
               <motion.div
                 key={comment.id}
@@ -127,58 +129,34 @@ export default function StudentComments() {
                 {/* Comment header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexDirection: dir === 'ltr' ? 'row' : 'row-reverse' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
-                    {comment.avatar}
+                    👤
                   </div>
                   <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
                     <div style={{ fontSize: '14px', fontWeight: 700, color: 'white' }}>{comment.name}</div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{comment.time}</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={10} /> {formatTime(comment.created_at)}
+                    </div>
                   </div>
                 </div>
 
                 {/* Comment text */}
                 <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)', lineHeight: 1.7, marginBottom: '14px', textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-                  {comment.text}
+                  {comment.comment_text}
                 </p>
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <button onClick={() => toggleLike(comment.id)} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', color: comment.liked ? '#f97316' : 'rgba(255,255,255,0.4)', fontSize: '13px', transition: 'color 200ms' }}>
-                    <ThumbsUp size={14} fill={comment.liked ? '#f97316' : 'none'} />
-                    {comment.likes}
-                  </button>
-                  <button onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-                    <MessageCircle size={14} />
-                    {dir === 'rtl' ? 'رد' : 'Reply'}
+                  <button onClick={() => toggleLike(comment.id)} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', color: likedIds.includes(comment.id) ? '#f97316' : 'rgba(255,255,255,0.4)', fontSize: '13px', transition: 'color 200ms' }}>
+                    <ThumbsUp size={14} fill={likedIds.includes(comment.id) ? '#f97316' : 'none'} />
+                    {likedIds.includes(comment.id) ? 1 : 0}
                   </button>
                 </div>
 
-                {/* Reply input */}
-                <AnimatePresence>
-                  {replyingTo === comment.id && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-                      <input
-                        value={replyText} onChange={(e) => setReplyText(e.target.value)}
-                        placeholder={dir === 'rtl' ? 'اكتب ردك...' : 'Write reply...'}
-                        style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 14px', color: 'white', fontSize: '13px', outline: 'none', textAlign: dir === 'rtl' ? 'right' : 'left' }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') addReply(comment.id); }}
-                      />
-                      <button onClick={() => addReply(comment.id)} style={{ padding: '8px 14px', borderRadius: '10px', background: '#f97316', border: 'none', color: 'white', fontSize: '13px', cursor: 'pointer' }}>
-                        {dir === 'rtl' ? 'ارسل' : 'Send'}
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Replies */}
-                {comment.replies.length > 0 && (
-                  <div style={{ marginTop: '14px', paddingInlineStart: '20px', borderInlineStart: '2px solid rgba(249,115,22,0.25)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {comment.replies.map((reply) => (
-                      <div key={reply.id}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#f97316', marginBottom: '2px', textAlign: dir === 'rtl' ? 'right' : 'left' }}>{reply.name}</div>
-                        <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', textAlign: dir === 'rtl' ? 'right' : 'left' }}>{reply.text}</p>
-                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>{reply.time}</span>
-                      </div>
-                    ))}
+                {/* Admin reply */}
+                {comment.reply_text && (
+                  <div style={{ marginTop: '14px', paddingInlineStart: '20px', borderInlineStart: '2px solid rgba(249,115,22,0.25)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#f97316', marginBottom: '2px', textAlign: dir === 'rtl' ? 'right' : 'left' }}>EDUVERSE</div>
+                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', textAlign: dir === 'rtl' ? 'right' : 'left' }}>{comment.reply_text}</p>
                   </div>
                 )}
               </motion.div>
