@@ -154,7 +154,7 @@ export function pushAppData(data: RawAdminData): void {
  * "حفظ الآن" في الإعدادات عشان يقدر يأكّد للأدمن إن كل حاجة اتحفظت
  * فعلاً بدل ما يفترض كده وهو مش متأكد.
  */
-export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean; cloud: boolean }> {
+export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean; cloud: boolean; message?: string }> {
   if (pushDebounceTimer) { clearTimeout(pushDebounceTimer); pushDebounceTimer = null; }
   if (!isSupabaseConfigured || !supabase) {
     // وضع العرض التوضيحي — مفيش Supabase متصل، فالحفظ محلي بس (localStorage
@@ -162,11 +162,27 @@ export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean;
     // ياخد تأكيد واضح إن التغييرات محفوظة على الجهاز ده على الأقل.
     return { ok: true, cloud: false };
   }
+  // فحص وقائي: لو رفع أي ملف فشل (مفيش اتصال، أو bucket eduverse-media مش
+  // منشأ بعد)، readFile في AdminDashboard.tsx بترجع لتشفير base64 محلي
+  // بدل ما توقف — لكن ده بيخلي الصف المشترك ضخم جدًا (خصوصًا للفيديوهات)
+  // ويفشل الحفظ برسالة سيرفر مش واضحة. نكتشف الحالة دي هنا ونديله رسالة
+  // مفهومة بدل ما نسيب Supabase يرفض الطلب برسالة تقنية غامضة.
+  let payloadSize = 0;
+  try { payloadSize = new Blob([JSON.stringify(data)]).size; } catch { /* ignore */ }
+  if (payloadSize > 3_000_000) {
+    return {
+      ok: false, cloud: true,
+      message: `حجم البيانات كبير جدًا (${(payloadSize / 1_000_000).toFixed(1)}MB) — على الأغلب صورة أو فيديو اترفع بشكل محلي بدل السحابة (فشل رفع Storage). تأكد إن bucket "eduverse-media" وسياساته منشأة (شغّل 0004_media_storage.sql)، وإن اتصالك بالإنترنت شغال وقت الرفع، ثم أعد رفع أي ملف كبير.`,
+    };
+  }
   try {
     const { error } = await supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data });
-    return { ok: !error, cloud: true };
-  } catch {
-    return { ok: false, cloud: true };
+    if (error) console.error('[adminBridge] pushAppDataNow failed:', error.message, error);
+    return { ok: !error, cloud: true, message: error?.message };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('[adminBridge] pushAppDataNow exception:', e);
+    return { ok: false, cloud: true, message };
   }
 }
 
