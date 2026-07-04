@@ -266,10 +266,7 @@ function AppContent() {
 
   if (showAdmin) {
     return (
-      <div dir={dir}>
-        <button onClick={exitAdmin} style={{ position: 'fixed', top: '16px', insetInlineStart: '16px', zIndex: 100, padding: '8px 20px', borderRadius: '999px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'white', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          ← {t('admin_exit')}
-        </button>
+      <div dir={dir} style={{ position: 'fixed', inset: 0, zIndex: 9999, overflowY: 'auto', background: '#0a0a1a' }}>
         <AdminDashboard
           currentPassword={adminPassword}
           onPasswordChange={setAdminPassword}
