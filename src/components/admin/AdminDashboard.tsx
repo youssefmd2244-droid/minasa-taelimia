@@ -9,6 +9,10 @@ import {
 import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
 import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile } from '../../lib/adminBridge';
+import {
+  fetchAllComments, setCommentVisibility, replyToComment, deleteComment, subscribeComments,
+  type PublicCommentRow,
+} from '../../lib/commentsBridge';
 import { genId } from '../../utils/id';
 
 // ─── Auth code for password change only ───
@@ -35,13 +39,13 @@ interface FileItem {
   description?: string; sectionId: number; showOnHome: boolean;
   isDeleted: boolean; allowDownload: boolean; attachments?: Attachment[];
 }
-interface Comment {
-  id: number; contentId: number; userId: string; commentText: string;
-  replyText: string | null; isVisible: boolean; createdAt: string;
-}
+// ملاحظة: التعليقات مش جزء من AdminData بقى — بقت متخزنة في جدول حقيقي
+// مستقل (public_comments، راجع src/lib/commentsBridge.ts) بدل ما تكون
+// بيانات وهمية جوه صف app_data المشترك، عشان تعليقات الزوار المتزامنة
+// ما تتعارضش مع تعديلات الأدمن التانية.
 interface AdminData {
   sections: Section[]; contentItems: ContentItem[]; records: RecordItem[];
-  files: FileItem[]; comments: Comment[]; appName: string;
+  files: FileItem[]; appName: string;
   themeColors: string[]; maintenanceMode: boolean; rgbLighting: boolean;
   notifications: boolean; downloadFeatureEnabled: boolean;
 }
@@ -68,10 +72,6 @@ const DEFAULT_DATA: AdminData = {
     { id: 2, sectionId: 2, title: 'التجارب العلمية', type: 'pdf', contentBody: '', fileUrl: '', isFeatured: true, showOnHome: true, allowDownload: false, isDeleted: false },
   ],
   records: [], files: [],
-  comments: [
-    { id: 1, contentId: 1, userId: 'user1', commentText: 'شرح رائع!', replyText: 'شكراً لك', isVisible: true, createdAt: '2025-01-15' },
-    { id: 2, contentId: 2, userId: 'user2', commentText: 'هل يوجد ملف PDF؟', replyText: null, isVisible: true, createdAt: '2025-01-16' },
-  ],
 };
 
 function loadData(): AdminData {
@@ -112,6 +112,14 @@ const readFile = async (file: File, folder: string = 'misc'): Promise<string> =>
   }
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
 };
+
+/**
+ * نسخة رفع أكتر من ملف مرة واحدة (بالتوازي) — بتستخدمها أي شاشة رفع
+ * عايزة تسمح للأدمن يختار أكتر من صورة/فيديو/ملف/صوت مرة واحدة، مجمّعين
+ * مع بعض أو كل واحد لوحده. مفيش أي حد أقصى لعدد الملفات المختارة.
+ */
+const readFiles = async (files: File[], folder: string = 'misc'): Promise<{ url: string; name: string }[]> =>
+  Promise.all(files.map(async (file) => ({ url: await readFile(file, folder), name: file.name })));
 
 const fileTypeIcon: Record<string, string> = { pdf: '📄', word: '📝', excel: '📊', ppt: '📋', zip: '📦' };
 const fileTypeLabel: Record<string, string> = { pdf: 'PDF', word: 'Word', excel: 'Excel', ppt: 'PowerPoint', zip: 'ZIP' };
@@ -167,10 +175,15 @@ function AttachmentPicker({ attachments, onChange, onView }: {
   onView?: (src: string, type: 'image' | 'video') => void;
 }) {
   const addAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    const url = await readFile(file);
-    const type: Attachment['type'] = file.type.startsWith('image') ? 'image' : file.type.startsWith('video') ? 'video' : 'audio';
-    onChange([...attachments, { url, name: file.name, type }]);
+    const files = Array.from(e.target.files || []); if (!files.length) return;
+    // بيقبل أكتر من صورة/فيديو/صوت مرة واحدة (مجمّعين مع بعض جوه نفس العنصر)
+    const uploaded = await readFiles(files);
+    const newAttachments: Attachment[] = uploaded.map((u, i) => {
+      const f = files[i];
+      const type: Attachment['type'] = f.type.startsWith('image') ? 'image' : f.type.startsWith('video') ? 'video' : 'audio';
+      return { url: u.url, name: u.name, type };
+    });
+    onChange([...attachments, ...newAttachments]);
     e.target.value = '';
   };
   const remove = (i: number) => onChange(attachments.filter((_, idx) => idx !== i));
@@ -201,8 +214,8 @@ function AttachmentPicker({ attachments, onChange, onView }: {
       </div>
       <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs text-white/50 hover:text-white/80 transition-colors"
         style={{ border: '1px dashed rgba(255,255,255,0.12)' }}>
-        <Plus size={12} /> إضافة صورة / فيديو / صوت
-        <input type="file" accept="image/*,video/*,audio/*" onChange={addAttachment} className="hidden" />
+        <Plus size={12} /> إضافة صورة / فيديو / صوت (يمكن اختيار أكتر من ملف)
+        <input type="file" multiple accept="image/*,video/*,audio/*" onChange={addAttachment} className="hidden" />
       </label>
     </div>
   );
@@ -289,13 +302,25 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
   const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
   const typeLabels: Record<string, string> = { video: '🎬', image: '🖼️', text: '📝', pdf: '📄', word: '📝', powerpoint: '📊', excel: '📈', zip: '📦' };
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
+    const files = Array.from(e.target.files || []); if (!files.length) return;
     setUploading(true);
     try {
-      const url = await readFile(file, 'content'); setUploadedFile({ url, name: file.name });
+      const uploaded = await readFiles(files, 'content');
+      // أول ملف بيتحط كمعاينة/عنصر المحتوى الحالي اللي بتضيفه دلوقتي
+      setUploadedFile(uploaded[0]);
+      // أي ملفات زيادة (اختيار أكتر من صورة/فيديو مرة واحدة) بتتحول
+      // كل واحدة لعنصر محتوى مستقل بنفس القسم/الإعدادات المختارة
+      if (uploaded.length > 1) {
+        setContent(prev => [...prev, ...uploaded.slice(1).map(u => ({
+          id: genId(), sectionId, title: u.name, type: mediaType, contentBody: desc.trim(),
+          fileUrl: u.url, isFeatured: false, showOnHome, allowDownload: false, isDeleted: false,
+          attachments: [] as Attachment[],
+        }))]);
+      }
     } finally {
       setUploading(false);
     }
+    e.target.value = '';
   };
   const addContent = () => {
     if (addMode === 'media' && !uploadedFile && !title.trim()) return;
@@ -352,8 +377,8 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
               ) : (
                 <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 transition-colors" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
                   <UploadCloud size={24} className="text-white/40" />
-                  <span className="text-xs text-white/50">{mediaType === 'image' ? 'اختر صورة' : 'اختر فيديو'}</span>
-                  <input type="file" accept={mediaType === 'image' ? 'image/*' : 'video/*'} onChange={handleFileSelect} className="hidden" />
+                  <span className="text-xs text-white/50">{mediaType === 'image' ? 'اختر صورة (أو أكتر)' : 'اختر فيديو (أو أكتر)'}</span>
+                  <input type="file" multiple accept={mediaType === 'image' ? 'image/*' : 'video/*'} onChange={handleFileSelect} className="hidden" />
                 </label>
               )
             ) : (
@@ -524,8 +549,24 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
                 <StopCircle size={14} /> إيقاف
               </button>}
           <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium cursor-pointer" style={{ background: uploadingAudio ? 'rgba(255,255,255,0.05)' : 'rgba(107,191,122,0.12)', border: uploadingAudio ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(107,191,122,0.3)', color: uploadingAudio ? 'rgba(255,255,255,0.4)' : '#6BBF7A' }}>
-            {uploadingAudio ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />} {uploadingAudio ? 'جاري الرفع...' : 'رفع صوت'}
-            <input type="file" accept="audio/*" disabled={uploadingAudio} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploadingAudio(true); try { setUploadedAudio({ url: await readFile(f, 'audio'), name: f.name }); setAudioUrl(null); } finally { setUploadingAudio(false); } }} className="hidden" />
+            {uploadingAudio ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />} {uploadingAudio ? 'جاري الرفع...' : 'رفع صوت (أو أكتر من ملف)'}
+            <input type="file" multiple accept="audio/*" disabled={uploadingAudio} onChange={async e => {
+              const fs = Array.from(e.target.files || []); if (!fs.length) return;
+              setUploadingAudio(true);
+              try {
+                const uploaded = await readFiles(fs, 'audio');
+                setUploadedAudio(uploaded[0]); setAudioUrl(null);
+                // أي ملفات صوتية زيادة بتتضاف مباشرة كتعليقات صوتية مستقلة
+                if (uploaded.length > 1) {
+                  setRecords(prev => [...prev, ...uploaded.slice(1).map(u => ({
+                    id: genId(), title: u.name, audioUrl: u.url,
+                    sectionId, section: sections.find(s => s.id === sectionId)?.title || '',
+                    showOnHome: false, isDeleted: false, text: '', attachments: [] as Attachment[],
+                  }))]);
+                }
+              } finally { setUploadingAudio(false); }
+              e.target.value = '';
+            }} className="hidden" />
           </label>
         </div>
         {(audioUrl || uploadedAudio) && (
@@ -660,8 +701,24 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
           ) : (
             <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 mb-3" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
               <File size={24} className="text-white/40" />
-              <span className="text-xs text-white/50">اختر ملف {fileTypeLabel[fileType]}</span>
-              <input type="file" accept={fileAccept[fileType]} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploading(true); try { setUploadedFile({ url: await readFile(f, 'files'), name: f.name }); } finally { setUploading(false); } }} className="hidden" />
+              <span className="text-xs text-white/50">اختر ملف {fileTypeLabel[fileType]} (أو أكتر من ملف مرة واحدة)</span>
+              <input type="file" multiple accept={fileAccept[fileType]} onChange={async e => {
+                const fs = Array.from(e.target.files || []); if (!fs.length) return;
+                setUploading(true);
+                try {
+                  const uploaded = await readFiles(fs, 'files');
+                  setUploadedFile(uploaded[0]);
+                  // أي ملفات زيادة بتتضاف مباشرة كعناصر ملفات مستقلة بنفس القسم
+                  if (uploaded.length > 1) {
+                    setFiles(prev => [...prev, ...uploaded.slice(1).map(u => ({
+                      id: genId(), title: u.name, fileUrl: u.url, fileName: u.name,
+                      fileType, sectionId, showOnHome: false, isDeleted: false, allowDownload: true,
+                      attachments: [] as Attachment[],
+                    }))]);
+                  }
+                } finally { setUploading(false); }
+                e.target.value = '';
+              }} className="hidden" />
             </label>
           )
         ) : (
@@ -732,30 +789,67 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
 }
 
 /* ─── Comments Tab ─── */
-function CommentsTab({ comments, setComments }: { comments: Comment[]; setComments: React.Dispatch<React.SetStateAction<Comment[]>> }) {
+function CommentsTab() {
+  const [comments, setComments] = useState<PublicCommentRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
+
+  const refresh = useCallback(() => {
+    fetchAllComments().then(rows => { setComments(rows); setLoading(false); });
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const unsubscribe = subscribeComments(refresh);
+    return unsubscribe;
+  }, [refresh]);
+
+  const toggleVisible = async (c: PublicCommentRow) => {
+    // تحديث فوري في الواجهة (optimistic) ثم تأكيد فعلي مع Supabase
+    setComments(prev => prev.map(x => x.id === c.id ? { ...x, is_visible: !x.is_visible } : x));
+    await setCommentVisibility(c.id, !c.is_visible);
+  };
+
+  const remove = async (id: number) => {
+    setComments(prev => prev.filter(x => x.id !== id));
+    await deleteComment(id);
+  };
+
+  const sendReply = async (id: number) => {
+    if (!replyText.trim()) return;
+    setComments(prev => prev.map(x => x.id === id ? { ...x, reply_text: replyText } : x));
+    await replyToComment(id, replyText);
+    setReplyingTo(null); setReplyText('');
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-xl font-bold text-white">التعليقات</h2>
-        <span className="text-sm text-white/40">{comments.filter(c => !c.replyText).length} بدون رد</span>
+        <span className="text-sm text-white/40">{comments.filter(c => !c.is_visible).length} قيد المراجعة</span>
       </div>
+      <p className="text-xs text-white/30 mb-4">
+        أي تعليق جديد من زائر بيوصل هنا "قيد المراجعة" تلقائيًا. اضغط زر العين لإظهاره للعلن في الصفحة الرئيسية أو إخفائه، أو زر السلة لحذفه نهائيًا.
+      </p>
+      {loading && <p className="text-sm text-white/30">جاري التحميل...</p>}
+      {!loading && comments.length === 0 && <p className="text-sm text-white/30">لا توجد تعليقات بعد.</p>}
       <div className="space-y-2">
         {comments.map(c => (
-          <div key={c.id} className="rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: c.isVisible ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,0,0,0.2)', opacity: c.isVisible ? 1 : 0.5 }}>
+          <div key={c.id} className="rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: c.is_visible ? '1px solid rgba(107,191,122,0.25)' : '1px solid rgba(255,200,0,0.25)' }}>
             <div className="flex items-start gap-2">
-              <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: `hsl(${c.id * 90}, 60%, 50%)`, color: 'white' }}>{c.userId.slice(-2)}</div>
+              <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: `hsl(${c.id * 47}, 60%, 50%)`, color: 'white' }}>{c.name.slice(0, 2)}</div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white/80">{c.commentText}</p>
-                <p className="text-xs text-white/30">{c.createdAt}</p>
-                {c.replyText && <div className="mt-1.5 pr-3 border-r-2 border-white/10"><p className="text-xs text-white/50">{c.replyText}</p></div>}
+                <p className="text-sm text-white font-medium">{c.name} <span className="text-xs text-white/30 font-normal" style={{ direction: 'ltr' }}>· {c.phone}</span></p>
+                <p className="text-sm text-white/80 mt-0.5">{c.comment_text}</p>
+                <p className="text-xs text-white/30 mt-0.5">{new Date(c.created_at).toLocaleString('ar-EG')}</p>
+                {c.reply_text && <div className="mt-1.5 pr-3 border-r-2 border-white/10"><p className="text-xs text-white/50">{c.reply_text}</p></div>}
               </div>
               <div className="flex gap-1 flex-shrink-0">
-                <button onClick={() => setComments(prev => prev.map(x => x.id === c.id ? { ...x, isVisible: !x.isVisible } : x))} className="p-1.5 rounded-lg hover:bg-white/10">
-                  {c.isVisible ? <Eye size={12} className="text-white/50" /> : <EyeOff size={12} className="text-yellow-400" />}
+                <button onClick={() => toggleVisible(c)} className="p-1.5 rounded-lg hover:bg-white/10" title={c.is_visible ? 'إخفاء عن العلن' : 'إظهار للعلن'}>
+                  {c.is_visible ? <Eye size={12} className="text-green-400" /> : <EyeOff size={12} className="text-yellow-400" />}
                 </button>
-                <button onClick={() => setComments(prev => prev.filter(x => x.id !== c.id))} className="p-1.5 rounded-lg hover:bg-white/10">
+                <button onClick={() => remove(c.id)} className="p-1.5 rounded-lg hover:bg-white/10" title="حذف نهائي">
                   <Trash2 size={12} className="text-red-400" />
                 </button>
               </div>
@@ -764,12 +858,12 @@ function CommentsTab({ comments, setComments }: { comments: Comment[]; setCommen
               <div className="flex gap-2 mt-2 pr-9">
                 <input type="text" value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="ردك..."
                   className="flex-1 px-3 py-2 rounded-lg text-sm text-white placeholder-white/30 outline-none" style={{ background: 'rgba(255,255,255,0.06)' }} autoFocus />
-                <button onClick={() => { if (!replyText.trim()) return; setComments(prev => prev.map(x => x.id === c.id ? { ...x, replyText } : x)); setReplyingTo(null); setReplyText(''); }} className="px-2 py-2 rounded-lg bg-white/10 text-white"><Check size={12} /></button>
+                <button onClick={() => sendReply(c.id)} className="px-2 py-2 rounded-lg bg-white/10 text-white"><Check size={12} /></button>
                 <button onClick={() => { setReplyingTo(null); setReplyText(''); }} className="px-2 py-2 rounded-lg bg-white/5 text-white/50"><X size={12} /></button>
               </div>
-            ) : !c.replyText ? (
-              <button onClick={() => setReplyingTo(c.id)} className="mt-1 mr-9 text-xs text-white/30 hover:text-white/60">رد...</button>
-            ) : null}
+            ) : (
+              <button onClick={() => { setReplyingTo(c.id); setReplyText(c.reply_text || ''); }} className="mt-1 mr-9 text-xs text-white/30 hover:text-white/60">{c.reply_text ? 'تعديل الرد...' : 'رد...'}</button>
+            )}
           </div>
         ))}
       </div>
@@ -778,12 +872,18 @@ function CommentsTab({ comments, setComments }: { comments: Comment[]; setCommen
 }
 
 /* ─── Analytics Tab ─── */
-function AnalyticsTab({ comments, content, records, files }: { comments: Comment[]; content: ContentItem[]; records: RecordItem[]; files: FileItem[] }) {
+function AnalyticsTab({ content, records, files }: { content: ContentItem[]; records: RecordItem[]; files: FileItem[] }) {
+  const [pendingComments, setPendingComments] = useState(0);
+  useEffect(() => {
+    const refresh = () => fetchAllComments().then(rows => setPendingComments(rows.filter(c => !c.is_visible).length));
+    refresh();
+    return subscribeComments(refresh);
+  }, []);
   const stats = [
     { label: 'المحتوى', value: content.filter(c => !c.isDeleted).length, color: '#F4845F' },
     { label: 'الصوتيات', value: records.filter(r => !r.isDeleted).length, color: '#E882B4' },
     { label: 'الملفات', value: files.filter(f => !f.isDeleted).length, color: '#6BBF7A' },
-    { label: 'تعليقات بدون رد', value: comments.filter(c => !c.replyText).length, color: '#6EB5FF' },
+    { label: 'تعليقات قيد المراجعة', value: pendingComments, color: '#6EB5FF' },
   ];
   return (
     <div>
@@ -990,11 +1090,10 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
   const [contentItems, setContentItems] = useState<ContentItem[]>(data.contentItems);
   const [records, setRecords] = useState<RecordItem[]>(data.records);
   const [files, setFiles] = useState<FileItem[]>(data.files);
-  const [comments, setComments] = useState<Comment[]>(data.comments);
 
   useEffect(() => {
-    saveData({ appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments });
-  }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments]);
+    saveData({ appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files });
+  }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files]);
 
   // زرار "حفظ الآن" في الإعدادات — بيجمع أحدث نسخة من كل حاجة (أقسام،
   // محتوى، ملفات، تسجيلات، إعدادات) ويحفظها فورًا (محلي + Supabase لو
@@ -1007,13 +1106,13 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
     setSaveErrorMessage(null);
     const result = await saveDataNow({
       appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled,
-      sections, contentItems, records, files, comments,
+      sections, contentItems, records, files,
     });
     setSaveWasCloud(result.cloud);
     setSaveStatus(result.ok ? 'saved' : 'error');
     if (!result.ok) setSaveErrorMessage(result.message || 'خطأ غير معروف');
     setTimeout(() => setSaveStatus('idle'), result.ok ? 3500 : 8000);
-  }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, comments]);
+  }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files]);
 
   // عند فتح لوحة الإدارة أول مرة على أي جهاز، نسحب أحدث نسخة حقيقية من
   // Supabase ونستبدل بيها القيم المحلية (اللي ممكن تكون بيانات تجريبية
@@ -1035,7 +1134,6 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
       setContentItems(merged.contentItems);
       setRecords(merged.records);
       setFiles(merged.files);
-      setComments(merged.comments);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1145,8 +1243,8 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             {activeTab === 'content' && <ContentTab content={contentItems} setContent={setContentItems} sections={sections} downloadFeatureEnabled={downloadFeatureEnabled} onMediaView={onMediaView} />}
             {activeTab === 'record' && <RecordTab records={records} setRecords={setRecords} sections={sections} onMediaView={onMediaView} />}
             {activeTab === 'files' && <FilesTab files={files} setFiles={setFiles} sections={sections} onMediaView={onMediaView} />}
-            {activeTab === 'comments' && <CommentsTab comments={comments} setComments={setComments} />}
-            {activeTab === 'analytics' && <AnalyticsTab comments={comments} content={contentItems} records={records} files={files} />}
+            {activeTab === 'comments' && <CommentsTab />}
+            {activeTab === 'analytics' && <AnalyticsTab content={contentItems} records={records} files={files} />}
             {activeTab === 'trash' && <TrashTab sections={sections} setSections={setSections} content={contentItems} setContent={setContentItems} records={records} setRecords={setRecords} files={files} setFiles={setFiles} />}
             {activeTab === 'display' && <DisplayScreen />}
             {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} />}
