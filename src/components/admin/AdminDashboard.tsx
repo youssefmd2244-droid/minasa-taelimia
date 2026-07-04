@@ -275,6 +275,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
   const [showOnHome, setShowOnHome] = useState(false);
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [editingContent, setEditingContent] = useState<ContentItem | null>(null);
   const activeSections = sections.filter(s => !s.isDeleted);
@@ -283,7 +284,12 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
   const typeLabels: Record<string, string> = { video: '🎬', image: '🖼️', text: '📝', pdf: '📄', word: '📝', powerpoint: '📊', excel: '📈', zip: '📦' };
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    const url = await readFile(file, 'content'); setUploadedFile({ url, name: file.name });
+    setUploading(true);
+    try {
+      const url = await readFile(file, 'content'); setUploadedFile({ url, name: file.name });
+    } finally {
+      setUploading(false);
+    }
   };
   const addContent = () => {
     if (addMode === 'media' && !uploadedFile && !title.trim()) return;
@@ -332,11 +338,18 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
               ))}
             </div>
             {!uploadedFile ? (
-              <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 transition-colors" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
-                <UploadCloud size={24} className="text-white/40" />
-                <span className="text-xs text-white/50">{mediaType === 'image' ? 'اختر صورة' : 'اختر فيديو'}</span>
-                <input type="file" accept={mediaType === 'image' ? 'image/*' : 'video/*'} onChange={handleFileSelect} className="hidden" />
-              </label>
+              uploading ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
+                  <Loader2 size={24} className="text-white/50 animate-spin" />
+                  <span className="text-xs text-white/60">جاري رفع {mediaType === 'image' ? 'الصورة' : 'الفيديو'}...</span>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 transition-colors" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
+                  <UploadCloud size={24} className="text-white/40" />
+                  <span className="text-xs text-white/50">{mediaType === 'image' ? 'اختر صورة' : 'اختر فيديو'}</span>
+                  <input type="file" accept={mediaType === 'image' ? 'image/*' : 'video/*'} onChange={handleFileSelect} className="hidden" />
+                </label>
+              )
             ) : (
               <div className="rounded-xl overflow-hidden relative" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
                 {mediaType === 'image' ? <img src={uploadedFile.url} alt="" className="w-full max-h-48 object-contain" style={{ background: '#000' }} /> : <video src={uploadedFile.url} controls className="w-full max-h-48" />}
@@ -449,6 +462,7 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
   const [recording, setRecording] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [uploadedAudio, setUploadedAudio] = useState<{ url: string; name: string } | null>(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
   const [title, setTitle] = useState(''); const [text, setText] = useState('');
   const [sectionId, setSectionId] = useState(sections[0]?.id || 1);
   const [showOnHome, setShowOnHome] = useState(false);
@@ -503,9 +517,9 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
             : <button onClick={() => { mediaRef.current?.stop(); setRecording(false); }} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium" style={{ background: 'rgba(239,68,68,0.3)', border: '1px solid rgba(239,68,68,0.5)', color: '#f87171' }}>
                 <StopCircle size={14} /> إيقاف
               </button>}
-          <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
-            <UploadCloud size={14} /> رفع صوت
-            <input type="file" accept="audio/*" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploadedAudio({ url: await readFile(f, 'audio'), name: f.name }); setAudioUrl(null); }} className="hidden" />
+          <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium cursor-pointer" style={{ background: uploadingAudio ? 'rgba(255,255,255,0.05)' : 'rgba(107,191,122,0.12)', border: uploadingAudio ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(107,191,122,0.3)', color: uploadingAudio ? 'rgba(255,255,255,0.4)' : '#6BBF7A' }}>
+            {uploadingAudio ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />} {uploadingAudio ? 'جاري الرفع...' : 'رفع صوت'}
+            <input type="file" accept="audio/*" disabled={uploadingAudio} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploadingAudio(true); try { setUploadedAudio({ url: await readFile(f, 'audio'), name: f.name }); setAudioUrl(null); } finally { setUploadingAudio(false); } }} className="hidden" />
           </label>
         </div>
         {(audioUrl || uploadedAudio) && (
@@ -590,6 +604,7 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
   const [title, setTitle] = useState(''); const [sectionId, setSectionId] = useState(sections[0]?.id || 1);
   const [fileType, setFileType] = useState<FileItem['fileType']>('pdf');
   const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [editingFile, setEditingFile] = useState<FileItem | null>(null);
   const [editingUpload, setEditingUpload] = useState<{ url: string; name: string } | null>(null);
@@ -631,11 +646,18 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
           ))}
         </div>
         {!uploadedFile ? (
-          <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 mb-3" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
-            <File size={24} className="text-white/40" />
-            <span className="text-xs text-white/50">اختر ملف {fileTypeLabel[fileType]}</span>
-            <input type="file" accept={fileAccept[fileType]} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploadedFile({ url: await readFile(f, 'files'), name: f.name }); }} className="hidden" />
-          </label>
+          uploading ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl mb-3" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
+              <Loader2 size={24} className="text-white/50 animate-spin" />
+              <span className="text-xs text-white/60">جاري رفع الملف...</span>
+            </div>
+          ) : (
+            <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 mb-3" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
+              <File size={24} className="text-white/40" />
+              <span className="text-xs text-white/50">اختر ملف {fileTypeLabel[fileType]}</span>
+              <input type="file" accept={fileAccept[fileType]} onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setUploading(true); try { setUploadedFile({ url: await readFile(f, 'files'), name: f.name }); } finally { setUploading(false); } }} className="hidden" />
+            </label>
+          )
         ) : (
           <div className="flex items-center gap-3 p-3 rounded-xl mb-3" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <span className="text-xl">{fileTypeIcon[fileType]}</span>
