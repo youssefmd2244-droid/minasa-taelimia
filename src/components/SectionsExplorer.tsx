@@ -125,14 +125,21 @@ function ContentLightbox({ item, onClose }: { item: ContentRow; onClose: () => v
   const isAudio = item.type === 'audio';
   const isText = item.type === 'text';
   const isFile = !isMedia && !isAudio && !isText;
+  // لما الفيديو يبقى في وضع "عائم"، بنشيل الخلفية المعتمة وبنوقف
+  // استقبالها للمس عشان تقدر فعليًا تستخدم باقي الصفحة/التطبيق وانت
+  // بتفرج، من غير ما الفيديو نفسه يتوقف أو يعيد التحميل.
+  const [videoFloating, setVideoFloating] = useState(false);
 
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose}
+      onClick={videoFloating ? undefined : onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(3,3,10,0.92)',
-        backdropFilter: 'blur(6px)', display: 'flex', flexDirection: 'column',
+        position: 'fixed', inset: 0, zIndex: 10001,
+        background: videoFloating ? 'transparent' : 'rgba(3,3,10,0.92)',
+        backdropFilter: videoFloating ? 'none' : 'blur(6px)',
+        pointerEvents: videoFloating ? 'none' : 'auto',
+        display: 'flex', flexDirection: 'column',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px' }}>
@@ -159,7 +166,8 @@ function ContentLightbox({ item, onClose }: { item: ContentRow; onClose: () => v
           <ZoomableImage src={item.file_url} alt={item.title} style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '14px', objectFit: 'contain' }} />
         )}
         {item.type === 'video' && item.file_url && (
-          <VideoPlayer src={item.file_url} autoPlay borderRadius="14px" maxHeight="60vh" />
+          <VideoPlayer src={item.file_url} autoPlay borderRadius="14px" maxHeight="60vh"
+            onFloatingChange={setVideoFloating} onCloseFloating={onClose} />
         )}
         {isAudio && item.file_url && (
           <audio src={item.file_url} controls style={{ width: '100%', maxWidth: '360px' }} />
