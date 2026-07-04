@@ -1054,7 +1054,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
       </AnimatePresence>
 
       {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3"
+      <div className="sticky top-0 z-[500] flex items-center justify-between px-4 py-3"
         style={{ background: 'rgba(10,10,26,0.97)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
@@ -1141,6 +1141,32 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
 
           </motion.div>
         </AnimatePresence>
+      </div>
+
+      {/* زرار حفظ ثابت وظاهر في كل التابات (مش بس جوه الإعدادات) — عشان
+          تقدر تأكّد إن أي إضافة أو تعديل اتحفظ فعلاً من غير ما تدوّر
+          عليه في مكان تاني. */}
+      <div style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 400, display: 'flex', justifyContent: 'center', padding: '10px 16px calc(10px + env(safe-area-inset-bottom))', pointerEvents: 'none' }}>
+        <button
+          onClick={handleSaveNow}
+          disabled={saveStatus === 'saving'}
+          style={{
+            pointerEvents: 'auto',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '12px 22px', borderRadius: '999px', fontWeight: 700, fontSize: '13.5px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.45)', border: 'none',
+            cursor: saveStatus === 'saving' ? 'wait' : 'pointer',
+            background: saveStatus === 'error' ? '#ef4444' : saveStatus === 'saved' ? '#6BBF7A' : 'white',
+            color: saveStatus === 'error' || saveStatus === 'saved' ? 'white' : '#0a0a1a',
+            opacity: saveStatus === 'saving' ? 0.8 : 1,
+            transition: 'all 200ms ease',
+          }}
+        >
+          {saveStatus === 'saving' && <><Loader2 size={16} className="animate-spin" /> جاري الحفظ...</>}
+          {saveStatus === 'saved' && <><Check size={16} /> {saveWasCloud ? 'اتحفظ للجميع ✓' : 'اتحفظ محليًا ✓'}</>}
+          {saveStatus === 'error' && <><AlertCircle size={16} /> فشل الحفظ، اضغط للمحاولة</>}
+          {saveStatus === 'idle' && <><Save size={16} /> حفظ التغييرات</>}
+        </button>
       </div>
     </div>
   );
