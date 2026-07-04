@@ -227,6 +227,16 @@ const MEDIA_BUCKET = 'eduverse-media';
  */
 export interface UploadResult { url: string | null; error?: string }
 
+/**
+ * يرفع أكتر من ملف مرة واحدة (بالتوازي) على Supabase Storage — بتستخدمها
+ * أي شاشة رفع عايزة تسمح للأدمن يختار أكتر من صورة/فيديو/ملف/صوت مرة
+ * واحدة (مجمّعين مع بعض أو كل واحد لوحده)، بدل ما يضطر يرفع كل ملف على
+ * حدى. مفيش أي حد أقصى لعدد الملفات هنا (غير حدود المتصفح نفسه).
+ */
+export async function uploadMediaFiles(files: File[], folder: string = 'misc'): Promise<UploadResult[]> {
+  return Promise.all(files.map((file) => uploadMediaFile(file, folder)));
+}
+
 export async function uploadMediaFile(file: File, folder: string = 'misc'): Promise<UploadResult> {
   if (!isSupabaseConfigured || !supabase) return { url: null };
   try {
