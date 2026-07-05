@@ -7,52 +7,45 @@
  *   الكاش المحلي الحالي (localStorage: eduverse_admin_data) بيتمسح لو
  *   المستخدم عمل "مسح بيانات التطبيق" من إعدادات أندرويد، أو لو النظام
  *   قرر ينضف WebView storage. تخزين نسخة كمان كملف حقيقي على تخزين
- *   الجهاز (خصوصاً لو المستخدم اختار "التخزين الخارجي المشترك") بيخلي
- *   البيانات تقدر ترجع حتى بعد مسح بيانات التطبيق أو إعادة التثبيت.
+ *   الجهاز بيخلي البيانات تقدر ترجع حتى بعد مسح بيانات التطبيق.
  *
- * تخزين مزدوج (redundant):
- *   كل حفظة بتتكتب في مكانين مع بعض دايمًا: "internal" (تخزين داخلي
- *   خاص بالتطبيق — مفيش داعي لأي إذن، وبينجح شبه أكيد) + المكان التاني
- *   اللي الأدمن مختاره من الإعدادات (المستندات أو التخزين الخارجي).
- *   لو مكان فشل (مثلاً الإذن اتلغى، أو أندرويد منع الكتابة) المكان
- *   التاني بيفضل شغال عادي وميتأثرش، والقراءة بترجع من أول مكان
- *   لاقيت فيه بيانات صحيحة.
+ * 3 خيارات حقيقية:
+ *   - internal → Directory.Data: مساحة خاصة بالتطبيق (تخزين الهاتف
+ *                الداخلي). مفيش أي إذن مطلوب، وبينجح في كل الحالات.
+ *   - external → Directory.External: مجلد التطبيق الخاص على التخزين
+ *                الخارجي (Android/data/<package>/files) — ده فعليًا
+ *                بيبقى على كارت الميموري (SD Card) لو الجهاز فيه واحد
+ *                ومتظبط كتخزين افتراضي، وإلا بيبقى على نفس التخزين
+ *                الداخلي للجهاز لو مفيش كارت ميموري. برضه مفيش إذن
+ *                مطلوب لأنه مساحة خاصة بالتطبيق.
+ *   - both     → بيكتب في المكانين مع بعض كل مرة (تخزين مزدوج حقيقي):
+ *                لو مكان فشل، التاني بيفضل شغال عادي وميتأثرش.
  *
- * 3 أماكن تخزين حقيقية متاحة (حسب نظام أندرويد الفعلي، بدون مبالغة):
- *   - internal  → Directory.Data: مساحة خاصة بالتطبيق، مفيش داعي لأي
- *                 إذن، لكنها بتتمسح لو المستخدم مسح بيانات التطبيق أو
- *                 عمل حذف تثبيت.
- *   - documents → Directory.Documents: مجلد "المستندات" المشترك، محتاج
- *                 إذن تخزين على أندرويد 12 وأقدم (13+ ملوش داعي).
- *   - external  → Directory.ExternalStorage: التخزين الخارجي المشترك
- *                 (زي فولدر Download)، برضه محتاج إذن على أندرويد 12
- *                 وأقدم. أندرويد 13+ بيقيّد الوصول الحر للتخزين المشترك
- *                 (Scoped Storage) — فممكن الكتابة تفشل حتى لو الإذن
- *                 اتوافق عليه حسب إصدار أندرويد بالظبط.
- *
- *   ملحوظة صادقة: مفيش "اختيار أي فولدر حر على الجهاز" هنا (زي متصفح
- *   الملفات) — ده محتاج بلجن أندرويد مخصص (Storage Access Framework)
- *   مش موجود في Capacitor الأساسي. اللي هنا 3 أماكن حقيقية وشغالة
- *   فعليًا على الجهاز، مش اختيار مسار حر بالكامل.
+ * ملحوظة صادقة عن رسالة "هل تسمح للتطبيق..." وكارت الميموري:
+ *   من أندرويد 10 لغاية النهاردة، جوجل ألغت تمامًا رسالة الإذن الكلاسيكية
+ *   لمجلدات التطبيق الخاصة (زي اللي فوق) لأنها أصلاً مأمّنة تلقائيًا —
+ *   مفيش تطبيق بيقدر يطلبها لأنها مش موجودة في نظام أندرويد نفسه، مش
+ *   حاجة ناقصة في الكود. اللي بيظهر بس على أندرويد 12 وأقدم هو إذن
+ *   "الملفات والوسائط" العادي، وده بيتطلب فعلاً هنا. أما "اختيار مسار
+ *   حر بالكامل على كارت الميموري" (زي متصفح ملفات) فمحتاج صلاحية خاصة
+ *   جدًا (كل الملفات) مقيدة جدًا من جوجل، ومحتاجة كود أندرويد أصلي
+ *   إضافي مش موجود هنا — فالخيارات الحقيقية والمضمونة هي الـ3 اللي فوق.
  */
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
-export type StorageLocation = 'internal' | 'documents' | 'external';
+export type StorageLocation = 'internal' | 'external' | 'both';
 
 export const STORAGE_LOCATION_LABELS: Record<StorageLocation, string> = {
-  internal: 'تخزين داخلي (خاص بالتطبيق)',
-  documents: 'مجلد المستندات المشترك',
-  external: 'التخزين الخارجي المشترك',
+  internal: 'تخزين داخلي فقط',
+  external: 'تخزين خارجي فقط (يشمل كارت الميموري لو موجود)',
+  both: 'الاثنين مع بعض (موصى به)',
 };
 
 const LOCATION_PREF_KEY = 'eduverse_storage_location';
 const CACHE_FILE_NAME = 'eduverse_app_data_cache.json';
 
-const LOCATION_TO_DIR: Record<StorageLocation, Directory> = {
-  internal: Directory.Data,
-  documents: Directory.Documents,
-  external: Directory.ExternalStorage,
-};
+const DIR_INTERNAL = Directory.Data;
+const DIR_EXTERNAL = Directory.External;
 
 /** بنعتبر التطبيق "شغال على هاتف حقيقي" (Capacitor) لو فيه Bridge أندرويد/iOS. */
 function isNativePlatform(): boolean {
@@ -68,36 +61,38 @@ function isNativePlatform(): boolean {
 export function getStorageLocation(): StorageLocation {
   try {
     const v = localStorage.getItem(LOCATION_PREF_KEY);
-    if (v === 'internal' || v === 'documents' || v === 'external') return v;
+    if (v === 'internal' || v === 'external' || v === 'both') return v;
   } catch { /* ignore */ }
-  return 'internal';
+  return 'both'; // الافتراضي: تخزين مزدوج من أول تشغيل، أضمن اختيار
 }
 
 function setStorageLocationPref(loc: StorageLocation) {
   try { localStorage.setItem(LOCATION_PREF_KEY, loc); } catch { /* ignore */ }
 }
 
-/** قائمة الأماكن اللي بتتكتب فيها كل حفظة — "internal" دايمًا + مكان الأدمن المختار (لو مختلف). */
-function activeLocations(): StorageLocation[] {
-  const chosen = getStorageLocation();
-  return chosen === 'internal' ? ['internal'] : ['internal', chosen];
+/** الأماكن الفعلية اللي هيتكتب/هيتقرأ منها الملف حسب اختيار المستخدم. */
+function dirsFor(loc: StorageLocation): Directory[] {
+  if (loc === 'internal') return [DIR_INTERNAL];
+  if (loc === 'external') return [DIR_EXTERNAL];
+  return [DIR_INTERNAL, DIR_EXTERNAL]; // both
 }
 
 export interface PermissionResult { granted: boolean; reason?: string }
 
 /**
- * بيتأكد إن التطبيق معاه إذن التخزين المطلوب لمكان معيّن، وبيطلبه من
- * المستخدم لو لسه ملوش. "internal" مفيهوش أي إذن مطلوب أصلاً.
+ * بتطلب إذن "الملفات والوسائط" الكلاسيكي — ده بس بيظهر فعليًا كرسالة
+ * على أندرويد 12 وأقدم (13+ ملغاش الإذن ده نهائيًا لمجلدات التطبيق).
+ * مفيش داعي نوقف عمليات القراءة/الكتابة على نتيجتها لأن Directory.Data
+ * وDirectory.External شغالين من غيرها أصلاً على كل الإصدارات.
  */
-export async function ensureStoragePermission(loc: StorageLocation): Promise<PermissionResult> {
-  if (loc === 'internal') return { granted: true };
-  if (!isNativePlatform()) return { granted: true }; // متصفح عادي — مفيش نظام أذونات أندرويد أصلاً
+export async function ensureStoragePermission(): Promise<PermissionResult> {
+  if (!isNativePlatform()) return { granted: true };
   try {
     const current = await Filesystem.checkPermissions();
     if (current.publicStorage === 'granted') return { granted: true };
     const requested = await Filesystem.requestPermissions();
     if (requested.publicStorage === 'granted') return { granted: true };
-    return { granted: false, reason: 'المستخدم رفض إذن التخزين، أو النظام منعه (أندرويد 13+ بيقيّد الوصول للتخزين المشترك تلقائيًا).' };
+    return { granted: false, reason: 'الجهاز على أندرويد 13 فأكتر — النظام بيدير مجلدات التطبيق تلقائيًا بدون رسالة إذن، وده طبيعي مش خطأ.' };
   } catch (e) {
     return { granted: false, reason: e instanceof Error ? e.message : String(e) };
   }
@@ -105,63 +100,42 @@ export async function ensureStoragePermission(loc: StorageLocation): Promise<Per
 
 /**
  * بتتنادى مرة واحدة أول ما التطبيق يفتح — بتطلب إذن التخزين فورًا زي أي
- * تطبيق أندرويد عادي (بدل ما تستنى لحد ما الأدمن يفتح الإعدادات ويختار
- * مكان تخزين تاني). لو المستخدم وافق، بيبقى جاهز يستخدم "المستندات" أو
- * "التخزين الخارجي" من الإعدادات من غير ما يتطلب منه إذن تاني.
+ * تطبيق أندرويد عادي. هتظهر رسالة فعلية على أندرويد 12 وأقدم بس، وعلى
+ * 13+ مفيش رسالة أصلاً لأن جوجل شالتها من النظام نفسه (تفصيل نظام، مش
+ * قصور في التطبيق).
  */
 let launchPermissionRequested = false;
 export async function requestStoragePermissionOnLaunch(): Promise<void> {
   if (launchPermissionRequested || !isNativePlatform()) return;
   launchPermissionRequested = true;
-  try { await ensureStoragePermission('external'); } catch { /* ignore */ }
+  try { await ensureStoragePermission(); } catch { /* ignore */ }
 }
 
 /**
- * يغيّر مكان التخزين المختار: بيتأكد من الإذن الأول، ولو اتوافق عليه
- * بينقل آخر نسخة بيانات معروفة (لو موجودة) للمكان الجديد فورًا، عشان
- * القراءة الجاية تلاقيها هناك. المكان الداخلي بيفضل بيتكتب فيه دايمًا
- * بالتوازي كنسخة احتياطية مضمونة.
+ * يغيّر مكان التخزين المختار، وبينقل آخر نسخة بيانات معروفة فورًا لكل
+ * الأماكن الفعّالة في الاختيار الجديد — عشان البيانات متختفيش لحظة
+ * التغيير (بتتكتب في المكان الجديد قبل ما نأكد التغيير).
  */
 export async function changeStorageLocation(
   loc: StorageLocation,
   currentData: unknown,
 ): Promise<PermissionResult> {
-  const perm = await ensureStoragePermission(loc);
-  if (!perm.granted) return perm;
+  await ensureStoragePermission(); // best-effort، مش شرط للنجاح
+  const ok = await writeToLocations(currentData, dirsFor(loc));
+  if (!ok) return { granted: false, reason: 'فشلت الكتابة في المكان الجديد — البيانات لسه محفوظة في المكان القديم ولم يتغير شيء.' };
   setStorageLocationPref(loc);
-  await writeAppDataToDevice(currentData);
   return { granted: true };
 }
 
-/**
- * يكتب نسخة من بيانات التطبيق كملف حقيقي على تخزين الجهاز — في كل
- * الأماكن النشطة مع بعض (internal + المكان المختار لو مختلف)، كل مكان
- * مستقل عن التاني. لو مكان فشل بيتسجل الخطأ في console بس من غير ما
- * يوقف كتابة باقي الأماكن. بترجع true لو نجح مكان واحد على الأقل.
- */
-export async function writeAppDataToDevice(data: unknown): Promise<boolean> {
-  if (!isNativePlatform()) return false; // على المتصفح العادي localStorage كافي، الملف ده لأندرويد فقط
-  const locations = activeLocations();
+async function writeToLocations(data: unknown, dirs: Directory[]): Promise<boolean> {
   const payload = JSON.stringify(data);
   const results = await Promise.all(
-    locations.map(async (location) => {
+    dirs.map(async (directory) => {
       try {
-        // "documents"/"external" محتاجين إذن — لو مش متوافق عليه نتجاهل
-        // المكان ده بهدوء (المكان الداخلي بيفضل شغال عادي بجانبه).
-        if (location !== 'internal') {
-          const perm = await ensureStoragePermission(location);
-          if (!perm.granted) return false;
-        }
-        await Filesystem.writeFile({
-          path: CACHE_FILE_NAME,
-          directory: LOCATION_TO_DIR[location],
-          data: payload,
-          encoding: Encoding.UTF8,
-          recursive: true,
-        });
+        await Filesystem.writeFile({ path: CACHE_FILE_NAME, directory, data: payload, encoding: Encoding.UTF8, recursive: true });
         return true;
       } catch (e) {
-        console.error(`[deviceStorage] write failed (${location}):`, e);
+        console.error('[deviceStorage] write failed:', directory, e);
         return false;
       }
     }),
@@ -170,24 +144,25 @@ export async function writeAppDataToDevice(data: unknown): Promise<boolean> {
 }
 
 /**
- * يقرأ آخر نسخة محفوظة كملف على تخزين الجهاز — بيجرّب المكان المختار
- * الأول، ولو مش موجود/فشل بيرجع تلقائيًا للمكان الداخلي كنسخة احتياطية،
- * عشان لو مكان واحد فشل يفضل الثاني شغال عادي. بترجع null لو الاتنين
- * فشلوا (أول مرة يفتح فيها التطبيق مثلاً).
+ * يكتب نسخة من بيانات التطبيق كملف حقيقي على تخزين الجهاز، في كل
+ * الأماكن الفعّالة حسب اختيار المستخدم الحالي. بترجع true لو نجح مكان
+ * واحد على الأقل (لو "both" مختار وفشل مكان، التاني بيفضل شغال عادي).
+ */
+export async function writeAppDataToDevice(data: unknown): Promise<boolean> {
+  if (!isNativePlatform()) return false; // على المتصفح العادي localStorage كافي، الملف ده لأندرويد فقط
+  return writeToLocations(data, dirsFor(getStorageLocation()));
+}
+
+/**
+ * يقرأ آخر نسخة محفوظة كملف على تخزين الجهاز — بيجرّب كل الأماكن
+ * الفعّالة بالترتيب، ولو مكان فشل بيجرّب اللي بعده تلقائيًا. بترجع null
+ * لو كل الأماكن فشلت (أول مرة يفتح فيها التطبيق مثلاً).
  */
 export async function readAppDataFromDevice(): Promise<unknown | null> {
   if (!isNativePlatform()) return null;
-  for (const location of activeLocations()) {
+  for (const directory of dirsFor(getStorageLocation())) {
     try {
-      if (location !== 'internal') {
-        const perm = await ensureStoragePermission(location);
-        if (!perm.granted) continue;
-      }
-      const res = await Filesystem.readFile({
-        path: CACHE_FILE_NAME,
-        directory: LOCATION_TO_DIR[location],
-        encoding: Encoding.UTF8,
-      });
+      const res = await Filesystem.readFile({ path: CACHE_FILE_NAME, directory, encoding: Encoding.UTF8 });
       return JSON.parse(res.data as string);
     } catch {
       continue; // الملف مش موجود في المكان ده أو فشلت القراءة — جرّب اللي بعده
