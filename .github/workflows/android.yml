@@ -32,6 +32,25 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Add storage permissions (device storage location feature)
+        run: |
+          set -e
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ] && ! grep -q "READ_EXTERNAL_STORAGE" "$MANIFEST"; then
+            python3 - << 'PYEOF'
+          path = "android/app/src/main/AndroidManifest.xml"
+          with open(path, "r", encoding="utf-8") as f:
+              content = f.read()
+          perms = (
+              '    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n'
+              '    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n'
+          )
+          content = content.replace("<application", perms + "\n    <application", 1)
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(content)
+          PYEOF
+          fi
+
       - name: Fix FileProvider (share crash)
         run: |
           set -e
