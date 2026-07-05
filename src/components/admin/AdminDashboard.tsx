@@ -158,44 +158,44 @@ const readFiles = async (files: File[], folder: string = 'misc'): Promise<{ url:
   Promise.all(files.map(async (file) => ({ url: await readFile(file, folder), name: file.name })));
 
 /**
- * زي readFile العادية، بس لو الملف فيديو، كمان بتولّد صورة poster حقيقية
- * من ثانية قصيرة جوّه الفيديو نفسه (قبل الرفع، من الملف المحلي — بدون
- * أي مشكلة CORS) وترفعها كملف صورة منفصل على نفس مساحة التخزين. كده
- * الفيديو بيظهر بصورة حقيقية فورًا لكل المستخدمين بدل مربع أسود، بدل
- * الاعتماد على كل متصفح عند كل مشاهد يحاول يولّدها بنفسه وقت المشاهدة
- * (وده كان بيفشل بصمت غالبًا). فشل توليد/رفع الـ poster (نادر) مش بيوقف
- * رفع الفيديو نفسه — بيكمّل عادي بس من غير صورة مصغّرة.
+ * زي readFile العادية، بس مبقاش بيستنى توليد صورة الـ poster خالص —
+ * الفيديو بيترفع لوحده وبس، وبيرجّع الرابط فورًا أول ما يخلص الرفع
+ * الفعلي على الشبكة (زي أي ملف تاني بالظبط). توليد ورفع الـ poster
+ * بقى مسؤولية دالة منفصلة (generatePosterInBackground تحت) بتتنده
+ * على مسارها الخاص من غير ما "الرفع" يفضل شغال في الواجهة لحد ما
+ * تخلص هي كمان — سبب فعلي لبطء ظاهري كان موجود قبل كده، لأن توليد
+ * الـ poster محلياً (فك تشفير الفيديو كامل في المتصفح) ممكن ياخد وقت
+ * أطول بكتير من رفع الملف نفسه على شبكة سريعة.
  */
-const readMediaFile = async (file: File, folder: string = 'content'): Promise<{ url: string; name: string; posterUrl?: string }> => {
-  if (!file.type.startsWith('video/')) {
-    const url = await readFile(file, folder);
-    return { url, name: file.name };
-  }
-  // مهم: بنرفع الفيديو ونولّد/نرفع الـ poster في نفس الوقت (مش الواحد
-  // بعد التاني بالتتابع) — عشان إضافة ميزة الصورة المصغّرة متخليش رفع
-  // الفيديو حسّه أبطأ بكتير من قبل. العمليتين مستقلتين تمامًا عن بعض:
-  // توليد الصورة بيحصل محليًا من نفس ملف الفيديو (من غير ما يعدّل عليه)
-  // في نفس اللحظة اللي بيترفع فيها، فمفيش أي تعارض بينهم.
-  const [url, posterUrl] = await Promise.all([
-    readFile(file, folder),
-    (async (): Promise<string | undefined> => {
-      try {
-        const posterBlob = await captureVideoPoster(file);
-        if (!posterBlob) return undefined;
-        const posterFile = new File([posterBlob], `${file.name.replace(/\.[^/.]+$/, '')}_poster.jpg`, { type: 'image/jpeg' });
-        const posterResult = await uploadMediaFile(posterFile, `${folder}_posters`);
-        return posterResult.url || undefined;
-      } catch {
-        // فشل توليد أو رفع الـ poster — نكمل من غير صورة مصغّرة بهدوء
-        return undefined;
-      }
-    })(),
-  ]);
-  return { url, name: file.name, posterUrl };
+const readMediaFile = async (file: File, folder: string = 'content'): Promise<{ url: string; name: string }> => {
+  const url = await readFile(file, folder);
+  return { url, name: file.name };
 };
 
-const readMediaFiles = async (files: File[], folder: string = 'content'): Promise<{ url: string; name: string; posterUrl?: string }[]> =>
+const readMediaFiles = async (files: File[], folder: string = 'content'): Promise<{ url: string; name: string }[]> =>
   Promise.all(files.map((file) => readMediaFile(file, folder)));
+
+/**
+ * يولّد ويرفع صورة الـ poster لفيديو في الخلفية تمامًا (fire-and-forget)
+ * — بينده onReady لما تجهز فعليًا (ثواني بعد ما الفيديو يخلص رفعه)
+ * من غير ما يأخّر ظهور "تم الرفع" ولا يوقف أي حاجة تانية في الشاشة.
+ * فشل التوليد أو الرفع (نادر) بيتجاهل بهدوء — الفيديو بيفضل شغال عادي
+ * بس من غير صورة مصغّرة جاهزة.
+ */
+const generatePosterInBackground = (file: File, folder: string, onReady: (posterUrl: string) => void): void => {
+  if (!file.type.startsWith('video/')) return;
+  void (async () => {
+    try {
+      const posterBlob = await captureVideoPoster(file);
+      if (!posterBlob) return;
+      const posterFile = new File([posterBlob], `${file.name.replace(/\.[^/.]+$/, '')}_poster.jpg`, { type: 'image/jpeg' });
+      const posterResult = await uploadMediaFile(posterFile, `${folder}_posters`);
+      if (posterResult.url) onReady(posterResult.url);
+    } catch {
+      // فشل توليد أو رفع الـ poster في الخلفية — نتجاهل بهدوء
+    }
+  })();
+};
 
 const fileTypeIcon: Record<string, string> = { pdf: '📄', word: '📝', excel: '📊', ppt: '📋', zip: '📦' };
 const fileTypeLabel: Record<string, string> = { pdf: 'PDF', word: 'Word', excel: 'Excel', ppt: 'PowerPoint', zip: 'ZIP' };
@@ -383,16 +383,36 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     setUploading(true);
     try {
       const uploaded = await readMediaFiles(files, 'content');
-      // أول ملف بيتحط كمعاينة/عنصر المحتوى الحالي اللي بتضيفه دلوقتي
+      // أول ملف بيتحط كمعاينة/عنصر المحتوى الحالي اللي بتضيفه دلوقتي —
+      // الرفع خلص فعليًا هنا، مش مستنيين أي حاجة تانية.
       setUploadedFile(uploaded[0]);
+      // لو أول ملف فيديو، نولّد صورة الغلاف في الخلفية تمامًا. بتحدّث
+      // نفسها فين ما لقت الفيديو ده — سواء لسه في معاينة الإضافة
+      // (uploadedFile) أو خلاص اتضاف كعنصر محتوى فعلي (content)، عشان
+      // تشتغل صح مهما دست "إضافة" بسرعة قبل ما الصورة تجهز.
+      if (files[0]) {
+        const videoUrl = uploaded[0].url;
+        generatePosterInBackground(files[0], 'content', (posterUrl) => {
+          setUploadedFile(prev => (prev && prev.url === videoUrl ? { ...prev, posterUrl } : prev));
+          setContent(prev => prev.map(c => (c.fileUrl === videoUrl ? { ...c, posterUrl } : c)));
+        });
+      }
       // أي ملفات زيادة (اختيار أكتر من صورة/فيديو مرة واحدة) بتتحول
       // كل واحدة لعنصر محتوى مستقل بنفس القسم/الإعدادات المختارة
       if (uploaded.length > 1) {
-        setContent(prev => [...prev, ...uploaded.slice(1).map(u => ({
+        const extraItems = uploaded.slice(1).map(u => ({
           id: genId(), sectionId, title: u.name, type: mediaType, contentBody: desc.trim(),
-          fileUrl: u.url, posterUrl: u.posterUrl, isFeatured: false, showOnHome, allowDownload: false, isDeleted: false,
+          fileUrl: u.url, posterUrl: undefined as string | undefined, isFeatured: false, showOnHome, allowDownload: false, isDeleted: false,
           attachments: [] as Attachment[],
-        }))]);
+        }));
+        setContent(prev => [...prev, ...extraItems]);
+        extraItems.forEach((item, idx) => {
+          const f = files[idx + 1];
+          if (!f) return;
+          generatePosterInBackground(f, 'content', (posterUrl) => {
+            setContent(prev => prev.map(c => (c.id === item.id ? { ...c, posterUrl } : c)));
+          });
+        });
       }
     } finally {
       setUploading(false);
@@ -601,7 +621,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                       )}
                       <label className="flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
                         <UploadCloud size={12} /> استبدال {editingContent.type === 'image' ? 'الصورة' : 'الفيديو'}
-                        <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; const r = await readMediaFile(nf, 'content'); setEditingUpload({ url: r.url, name: r.name, posterUrl: r.posterUrl }); }} className="hidden" />
+                        <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; const r = await readMediaFile(nf, 'content'); setEditingUpload({ url: r.url, name: r.name }); generatePosterInBackground(nf, 'content', (posterUrl) => { setEditingUpload(prev => (prev && prev.url === r.url ? { ...prev, posterUrl } : prev)); setContent(prev => prev.map(c => (c.fileUrl === r.url ? { ...c, posterUrl } : c))); }); }} className="hidden" />
                       </label>
                       {editingContent.type === 'video' && (
                         <div className="flex items-center gap-3 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
