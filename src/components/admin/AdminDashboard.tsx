@@ -10,6 +10,7 @@ import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
 import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile } from '../../lib/adminBridge';
 import { writeAppDataToDevice, getStorageLocation, changeStorageLocation, STORAGE_LOCATION_LABELS, type StorageLocation } from '../../lib/deviceStorage';
+import { captureVideoPoster } from '../../lib/videoThumbnail';
 import {
   fetchAllComments, setCommentVisibility, replyToComment, deleteComment, subscribeComments,
   type PublicCommentRow,
@@ -28,6 +29,10 @@ interface ContentItem {
   id: number; sectionId: number; title: string; type: string; contentBody: string;
   fileUrl: string; isFeatured: boolean; showOnHome: boolean; allowDownload: boolean;
   isDeleted: boolean; attachments?: Attachment[];
+  /** صورة مصغّرة حقيقية للفيديو، متولّدة ومرفوعة وقت الرفع نفسه — بتحل
+   *  مشكلة "الفيديو بيظهر بمربع أسود لكل المستخدمين قبل ما يشغّلوه"،
+   *  راجع src/lib/videoThumbnail.ts. */
+  posterUrl?: string;
 }
 interface RecordItem {
   id: number; title: string; audioUrl: string; sectionId: number;
@@ -151,6 +156,34 @@ const readFile = async (file: File, folder: string = 'misc'): Promise<string> =>
  */
 const readFiles = async (files: File[], folder: string = 'misc'): Promise<{ url: string; name: string }[]> =>
   Promise.all(files.map(async (file) => ({ url: await readFile(file, folder), name: file.name })));
+
+/**
+ * زي readFile العادية، بس لو الملف فيديو، كمان بتولّد صورة poster حقيقية
+ * من ثانية قصيرة جوّه الفيديو نفسه (قبل الرفع، من الملف المحلي — بدون
+ * أي مشكلة CORS) وترفعها كملف صورة منفصل على نفس مساحة التخزين. كده
+ * الفيديو بيظهر بصورة حقيقية فورًا لكل المستخدمين بدل مربع أسود، بدل
+ * الاعتماد على كل متصفح عند كل مشاهد يحاول يولّدها بنفسه وقت المشاهدة
+ * (وده كان بيفشل بصمت غالبًا). فشل توليد/رفع الـ poster (نادر) مش بيوقف
+ * رفع الفيديو نفسه — بيكمّل عادي بس من غير صورة مصغّرة.
+ */
+const readMediaFile = async (file: File, folder: string = 'content'): Promise<{ url: string; name: string; posterUrl?: string }> => {
+  const url = await readFile(file, folder);
+  if (!file.type.startsWith('video/')) return { url, name: file.name };
+  try {
+    const posterBlob = await captureVideoPoster(file);
+    if (posterBlob) {
+      const posterFile = new File([posterBlob], `${file.name.replace(/\.[^/.]+$/, '')}_poster.jpg`, { type: 'image/jpeg' });
+      const posterResult = await uploadMediaFile(posterFile, `${folder}_posters`);
+      if (posterResult.url) return { url, name: file.name, posterUrl: posterResult.url };
+    }
+  } catch {
+    // فشل توليد أو رفع الـ poster — نكمل من غير صورة مصغّرة بهدوء
+  }
+  return { url, name: file.name };
+};
+
+const readMediaFiles = async (files: File[], folder: string = 'content'): Promise<{ url: string; name: string; posterUrl?: string }[]> =>
+  Promise.all(files.map((file) => readMediaFile(file, folder)));
 
 const fileTypeIcon: Record<string, string> = { pdf: '📄', word: '📝', excel: '📊', ppt: '📋', zip: '📦' };
 const fileTypeLabel: Record<string, string> = { pdf: 'PDF', word: 'Word', excel: 'Excel', ppt: 'PowerPoint', zip: 'ZIP' };
@@ -324,7 +357,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
   const [sectionId, setSectionId] = useState(sections[0]?.id || 1);
   const [showOnHome, setShowOnHome] = useState(false);
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
-  const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string } | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string; posterUrl?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [editingContent, setEditingContent] = useState<ContentItem | null>(null);
@@ -336,7 +369,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     const files = Array.from(e.target.files || []); if (!files.length) return;
     setUploading(true);
     try {
-      const uploaded = await readFiles(files, 'content');
+      const uploaded = await readMediaFiles(files, 'content');
       // أول ملف بيتحط كمعاينة/عنصر المحتوى الحالي اللي بتضيفه دلوقتي
       setUploadedFile(uploaded[0]);
       // أي ملفات زيادة (اختيار أكتر من صورة/فيديو مرة واحدة) بتتحول
@@ -344,7 +377,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
       if (uploaded.length > 1) {
         setContent(prev => [...prev, ...uploaded.slice(1).map(u => ({
           id: genId(), sectionId, title: u.name, type: mediaType, contentBody: desc.trim(),
-          fileUrl: u.url, isFeatured: false, showOnHome, allowDownload: false, isDeleted: false,
+          fileUrl: u.url, posterUrl: u.posterUrl, isFeatured: false, showOnHome, allowDownload: false, isDeleted: false,
           attachments: [] as Attachment[],
         }))]);
       }
@@ -359,16 +392,16 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     setContent(prev => [...prev, {
       id: genId(), sectionId, title: title.trim() || (uploadedFile?.name || 'محتوى'),
       type: addMode === 'text' ? 'text' : mediaType, contentBody: desc.trim(),
-      fileUrl: uploadedFile?.url || '', isFeatured: false, showOnHome,
+      fileUrl: uploadedFile?.url || '', posterUrl: uploadedFile?.posterUrl, isFeatured: false, showOnHome,
       allowDownload: false, isDeleted: false, attachments,
     }]);
     setTitle(''); setDesc(''); setUploadedFile(null); setShowOnHome(false); setAttachments([]);
   };
-  const [editingUpload, setEditingUpload] = useState<{ url: string; name: string } | null>(null);
+  const [editingUpload, setEditingUpload] = useState<{ url: string; name: string; posterUrl?: string } | null>(null);
   const saveEdit = () => {
     if (!editingContent) return;
     setContent(prev => prev.map(c => c.id === editingContent.id
-      ? { ...editingContent, fileUrl: editingUpload?.url || editingContent.fileUrl }
+      ? { ...editingContent, fileUrl: editingUpload?.url || editingContent.fileUrl, posterUrl: editingUpload?.posterUrl ?? editingContent.posterUrl }
       : c));
     setEditingContent(null); setEditingUpload(null);
   };
@@ -501,7 +534,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                       )}
                       <label className="flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
                         <UploadCloud size={12} /> استبدال {editingContent.type === 'image' ? 'الصورة' : 'الفيديو'}
-                        <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; setEditingUpload({ url: await readFile(nf, 'content'), name: nf.name }); }} className="hidden" />
+                        <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; const r = await readMediaFile(nf, 'content'); setEditingUpload({ url: r.url, name: r.name, posterUrl: r.posterUrl }); }} className="hidden" />
                       </label>
                     </>
                   )}
