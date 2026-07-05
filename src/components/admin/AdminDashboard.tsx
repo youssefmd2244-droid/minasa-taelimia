@@ -371,6 +371,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string; posterUrl?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [posterUploading, setPosterUploading] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [editingContent, setEditingContent] = useState<ContentItem | null>(null);
   const activeSections = sections.filter(s => !s.isDeleted);
@@ -398,6 +399,21 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     }
     e.target.value = '';
   };
+  /**
+   * بيسمح للأدمن يختار صورة يدويًا من معرض الصور (بدل الصورة اللي
+   * اتولّدت تلقائيًا من الفيديو) — مفيد لو الصورة التلقائية طلعت فريم
+   * غريب، أو الأدمن حابب يستخدم صورة غلاف مصمّمة خصيصًا للفيديو ده.
+   */
+  const pickCustomPoster = async (file: File) => {
+    setPosterUploading(true);
+    try {
+      const result = await uploadMediaFile(file, 'content_posters');
+      if (result.url) setUploadedFile(prev => prev ? { ...prev, posterUrl: result.url as string } : prev);
+      else if (result.error) window.alert(`فشل رفع صورة الغلاف: ${result.error}`);
+    } finally {
+      setPosterUploading(false);
+    }
+  };
   const addContent = () => {
     if (addMode === 'media' && !uploadedFile && !title.trim()) return;
     if (addMode === 'text' && !title.trim() && !desc.trim()) return;
@@ -410,6 +426,21 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     setTitle(''); setDesc(''); setUploadedFile(null); setShowOnHome(false); setAttachments([]);
   };
   const [editingUpload, setEditingUpload] = useState<{ url: string; name: string; posterUrl?: string } | null>(null);
+  const [editPosterUploading, setEditPosterUploading] = useState(false);
+  const pickCustomPosterForEdit = async (file: File) => {
+    if (!editingContent) return;
+    setEditPosterUploading(true);
+    try {
+      const result = await uploadMediaFile(file, 'content_posters');
+      if (result.url) {
+        setEditingUpload(prev => ({ url: prev?.url || editingContent.fileUrl, name: prev?.name || editingContent.title, posterUrl: result.url as string }));
+      } else if (result.error) {
+        window.alert(`فشل رفع صورة الغلاف: ${result.error}`);
+      }
+    } finally {
+      setEditPosterUploading(false);
+    }
+  };
   const saveEdit = () => {
     if (!editingContent) return;
     setContent(prev => prev.map(c => c.id === editingContent.id
@@ -463,6 +494,30 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                 <button onClick={() => setUploadedFile(null)} className="absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
                   <X size={14} className="text-white" />
                 </button>
+              </div>
+            )}
+            {/* صورة غلاف الفيديو (poster) — بتتولّد تلقائيًا من الفيديو نفسه،
+                وممكن كمان تستبدلها بصورة تختارها بنفسك من المعرض */}
+            {mediaType === 'video' && uploadedFile && (
+              <div className="mt-2 flex items-center gap-3 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#000' }}>
+                  {posterUploading ? (
+                    <Loader2 size={16} className="text-white/50 animate-spin" />
+                  ) : uploadedFile.posterUrl ? (
+                    <img src={uploadedFile.posterUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Video size={16} className="text-white/30" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-white/60 mb-1">
+                    {posterUploading ? 'جاري رفع صورة الغلاف...' : uploadedFile.posterUrl ? 'صورة الغلاف جاهزة' : 'لسه بتتولّد صورة الغلاف تلقائيًا...'}
+                  </p>
+                  <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
+                    <ImageIcon size={12} /> اختيار صورة غلاف يدويًا من المعرض
+                    <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) void pickCustomPoster(f); e.target.value = ''; }} className="hidden" />
+                  </label>
+                </div>
               </div>
             )}
           </div>
@@ -548,6 +603,23 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                         <UploadCloud size={12} /> استبدال {editingContent.type === 'image' ? 'الصورة' : 'الفيديو'}
                         <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; const r = await readMediaFile(nf, 'content'); setEditingUpload({ url: r.url, name: r.name, posterUrl: r.posterUrl }); }} className="hidden" />
                       </label>
+                      {editingContent.type === 'video' && (
+                        <div className="flex items-center gap-3 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#000' }}>
+                            {editPosterUploading ? (
+                              <Loader2 size={14} className="text-white/50 animate-spin" />
+                            ) : (editingUpload?.posterUrl || editingContent.posterUrl) ? (
+                              <img src={editingUpload?.posterUrl || editingContent.posterUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Video size={14} className="text-white/30" />
+                            )}
+                          </div>
+                          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
+                            <ImageIcon size={12} /> تغيير صورة الغلاف يدويًا
+                            <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) void pickCustomPosterForEdit(f); e.target.value = ''; }} className="hidden" />
+                          </label>
+                        </div>
+                      )}
                     </>
                   )}
                   <button onClick={() => { setEditingContent(null); setEditingUpload(null); }} className="w-full py-2 rounded-lg text-xs font-bold bg-white/10 text-white flex items-center justify-center gap-1"><X size={13} /> إلغاء</button>
