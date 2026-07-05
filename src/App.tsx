@@ -4,6 +4,7 @@ import { Settings, Search as SearchIcon, BookOpen, Share2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { requestStoragePermissionOnLaunch } from './lib/deviceStorage';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
@@ -123,6 +124,12 @@ function AppContent() {
   // Persistent storage
   useEffect(() => {
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  }, []);
+
+  // طلب إذن التخزين فورًا أول ما التطبيق يفتح — زي أي تطبيق أندرويد
+  // عادي، بدل ما نستنى لحد ما الأدمن يفتح الإعدادات ويغيّر مكان التخزين.
+  useEffect(() => {
+    void requestStoragePermissionOnLaunch();
   }, []);
 
   // Show admin after password
