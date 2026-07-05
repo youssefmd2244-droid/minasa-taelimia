@@ -135,7 +135,7 @@ export default function LessonList({ sectionId, limit, onlyShowOnHome }: LessonL
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 600, color: 'white' }}>{item.title}</span>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'white', unicodeBidi: 'plaintext' }}>{item.title}</span>
                 {item.is_featured && <Star size={13} fill="#f97316" color="#f97316" />}
               </div>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{meta.label}</span>
