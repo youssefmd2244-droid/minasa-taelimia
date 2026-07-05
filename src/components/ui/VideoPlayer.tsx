@@ -19,6 +19,14 @@
  *   5) بنحاول نولّد صورة مصغّرة (poster) تلقائيًا من أول فريم في
  *      الفيديو لو محدش مرّر poster جاهزة، عشان الفيديو ميظهرش مربّع
  *      أسود فاضي قبل ما تشغّله.
+ *
+ * ملحوظة مهمة عن `crossOrigin`: العنصر ده متعمّدش يحطّها على تشغيل
+ * الفيديو نفسه. لو تخزين الملفات (Supabase Storage) مش مضبّط عليه
+ * رؤوس CORS (Access-Control-Allow-Origin) بالظبط، متصفح المستخدم
+ * (خصوصًا خارج جهاز الأدمن) بيرفض الاستجابة بالكامل لما يلاقي
+ * `crossorigin="anonymous"` من غير رأس CORS مناسب — فيظهر الفيديو
+ * أسود تمامًا وكأنه مش موجود. عشان كده الالتقاط التلقائي للفريم
+ * (autoPoster) بيتم من غير ما نأثر على عنصر الفيديو الأساسي.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
@@ -142,7 +150,6 @@ export default function VideoPlayer({ src, poster, autoPlay, borderRadius = '14p
         autoPlay={autoPlay}
         playsInline
         preload="metadata"
-        crossOrigin="anonymous"
         style={{
           width: '100%',
           height: floating ? '100%' : undefined,
