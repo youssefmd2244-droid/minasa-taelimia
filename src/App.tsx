@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Settings, Search as SearchIcon, BookOpen, Share2 } from 'lucide-react';
+import { Settings, Search as SearchIcon, BookOpen, Share2, ArrowRight, X } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -23,7 +23,7 @@ import { useScrollReveal } from './hooks/useScrollReveal';
 // ===== Password gate inline =====
 const ADMIN_PASS = '20042007';
 
-function PasswordGate({ onEnter }: { onEnter: () => void }) {
+function PasswordGate({ onEnter, onClose }: { onEnter: () => void; onClose: () => void }) {
   const { t, dir } = useLanguage();
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
@@ -35,6 +35,33 @@ function PasswordGate({ onEnter }: { onEnter: () => void }) {
   };
   return (
     <div dir={dir} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(5,5,16,0.95)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* زرار رجوع (يمين/شمال حسب اتجاه اللغة) وزرار إغلاق فوق الشاشة —
+          عشان تقدر تقفل شاشة كلمة المرور وترجع للصفحة الرئيسية من غير
+          ما تحتاج تستخدم زرار الرجوع بتاع النظام. */}
+      <button
+        onClick={onClose}
+        aria-label={dir === 'rtl' ? 'رجوع' : 'Back'}
+        title={dir === 'rtl' ? 'رجوع' : 'Back'}
+        style={{
+          position: 'fixed', top: '18px', [dir === 'rtl' ? 'right' : 'left']: '18px', zIndex: 10000,
+          width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white', cursor: 'pointer',
+        }}
+      >
+        <ArrowRight size={17} style={{ transform: dir === 'rtl' ? 'none' : 'scaleX(-1)' }} />
+      </button>
+      <button
+        onClick={onClose}
+        aria-label={dir === 'rtl' ? 'إغلاق' : 'Close'}
+        title={dir === 'rtl' ? 'إغلاق' : 'Close'}
+        style={{
+          position: 'fixed', top: '18px', [dir === 'rtl' ? 'left' : 'right']: '18px', zIndex: 10000,
+          width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white', cursor: 'pointer',
+        }}
+      >
+        <X size={18} />
+      </button>
       <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} style={{ width: '360px', padding: '40px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', textAlign: 'center' }}>
         <div style={{ fontSize: '32px', marginBottom: '16px' }}>🔐</div>
         <h2 style={{ color: 'white', fontWeight: 700, marginBottom: '6px' }}>{t('admin_title')}</h2>
@@ -287,7 +314,7 @@ function AppContent() {
     <div className="relative" dir={dir}>
       {/* Password gate */}
       <AnimatePresence>
-        {showPasswordGate && <PasswordGate onEnter={enterAdmin} />}
+        {showPasswordGate && <PasswordGate onEnter={enterAdmin} onClose={() => { setShowPasswordGate(false); if (window.location.hash === '#/admin') window.location.hash = ''; }} />}
       </AnimatePresence>
 
       {/* Real, functional search — reads the same live sections/content data as the rest of the app */}
