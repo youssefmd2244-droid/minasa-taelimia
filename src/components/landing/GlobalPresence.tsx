@@ -41,12 +41,12 @@ export default function GlobalPresence() {
           <Globe size={180} autoSpeed={28} mouseTracking={true} />
         </motion.div>
 
-        {/* Total students */}
+        {/* رسالة عن الانتشار — من غير رقم وهمي مخترع، عشان محسوس حقيقي مش تجريبي */}
         <motion.div className="text-center mt-2"
           initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
           viewport={{ once: true }} transition={{ delay: 0.4 }}>
-          <p className="text-5xl font-black text-white">+32,000</p>
-          <p className="text-sm text-white/40 mt-1">طالب نشط على المنصة</p>
+          <p className="text-2xl font-black text-white">منصة بتكبر يوم بعد يوم</p>
+          <p className="text-sm text-white/40 mt-1">طلاب بينضموا من كل حتة في الوطن العربي</p>
         </motion.div>
       </div>
     </section>
