@@ -139,7 +139,15 @@ function useVideoThumbnail(src: string | null | undefined): string | null {
 
 function ContentCard({ item, gradient, onOpen }: { item: ContentRow; gradient: string; onOpen: () => void }) {
   const isMedia = item.type === 'image' || item.type === 'video';
-  const videoThumb = useVideoThumbnail(item.type === 'video' ? item.file_url : null);
+  // مهم: الأولوية دايمًا للصورة المصغّرة (poster_url) اللي اتولّدت ورُفعت
+  // فعليًا وقت رفع الفيديو نفسه (انظر videoThumbnail.ts) — دي صورة جاهزة
+  // خفيفة بتظهر فورًا لكل المستخدمين. لو مش موجودة (فيديو قديم اتضاف
+  // قبل الميزة دي)، نرجع بس لمحاولة التقاط فريم حي من الفيديو نفسه —
+  // وده اللي كان بيسبب البطء (تحميل جزء من كل فيديو في الشبكة) والصورة
+  // السودة (لو فشل الالتقاط بسبب CORS)، فمينفعش يبقى المصدر الأساسي.
+  const needsLiveCapture = item.type === 'video' && !item.poster_url;
+  const videoThumb = useVideoThumbnail(needsLiveCapture ? item.file_url : null);
+  const posterSrc = item.poster_url || videoThumb;
   return (
     <motion.button
       layout
@@ -165,8 +173,8 @@ function ContentCard({ item, gradient, onOpen }: { item: ContentRow; gradient: s
         )}
         {item.type === 'video' && item.file_url && (
           <>
-            {videoThumb ? (
-              <img src={videoThumb} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {posterSrc ? (
+              <img src={posterSrc} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(107,191,122,0.25), rgba(20,20,30,0.6))' }} />
             )}
