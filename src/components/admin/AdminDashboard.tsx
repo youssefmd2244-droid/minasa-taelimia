@@ -9,6 +9,7 @@ import {
 import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
 import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile } from '../../lib/adminBridge';
+import { writeAppDataToDevice, getStorageLocation, changeStorageLocation, STORAGE_LOCATION_LABELS, type StorageLocation } from '../../lib/deviceStorage';
 import {
   fetchAllComments, setCommentVisibility, replyToComment, deleteComment, subscribeComments,
   type PublicCommentRow,
@@ -88,6 +89,9 @@ function saveData(data: AdminData) {
   // المستخدمين على أي جهاز — مش بس جهاز الأدمن. لو Supabase مش متصل
   // الفنكشن دي بترجع فورًا من غير أي تأثير (نفس سلوك وضع العرض التوضيحي).
   pushAppData(data);
+  // ونسخة كمان كملف حقيقي على تخزين الهاتف (مكان الأدمن المختار من
+  // الإعدادات) — fire-and-forget، مفيش داعي ننتظرها في الحفظ التلقائي.
+  void writeAppDataToDevice(data);
 }
 
 /**
@@ -98,6 +102,10 @@ function saveData(data: AdminData) {
 async function saveDataNow(data: AdminData): Promise<{ ok: boolean; cloud: boolean; message?: string }> {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); if (navigator.storage?.persist) navigator.storage.persist(); } catch {}
   notifyAdminDataChanged();
+  // نحاول نكتب على تخزين الهاتف الحقيقي كمان — لو فشلت (مثلاً الإذن لسه
+  // مش متوافق عليه) مش بنوقف عملية الحفظ الأساسية بسببها، لأن Supabase/
+  // localStorage هما مصدر الحقيقة الأساسي، ودي مجرد نسخة احتياطية إضافية.
+  try { await writeAppDataToDevice(data); } catch { /* ignore */ }
   return pushAppDataNow(data);
 }
 
@@ -944,18 +952,37 @@ function TrashTab({ sections, setSections, content, setContent, records, setReco
 }
 
 /* ─── Settings Tab ─── */
-function SettingsTab({ appName, setAppName, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange, onSaveNow, saveStatus, saveWasCloud, saveErrorMessage }: {
+function SettingsTab({ appName, setAppName, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange, onSaveNow, saveStatus, saveWasCloud, saveErrorMessage, getCurrentDataSnapshot }: {
   appName: string; setAppName: (v: string) => void; themeColors: string[]; setThemeColors: (v: string[]) => void;
   maintenanceMode: boolean; setMaintenanceMode: (v: boolean) => void; rgbLighting: boolean; setRgbLighting: (v: boolean) => void;
   notifications: boolean; setNotifications: (v: boolean) => void; downloadFeatureEnabled: boolean; setDownloadFeatureEnabled: (v: boolean) => void;
   onPasswordChange?: (pw: string) => void;
   onSaveNow: () => void; saveStatus: 'idle' | 'saving' | 'saved' | 'error'; saveWasCloud: boolean; saveErrorMessage: string | null;
+  /** بيرجّع أحدث نسخة من كل بيانات لوحة الإدارة — بنستخدمها لحظة تغيير
+   *  مكان التخزين عشان ننقل آخر نسخة فورًا للمكان الجديد. */
+  getCurrentDataSnapshot: () => unknown;
 }) {
   const [newPassword, setNewPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState('');
   const [authCode, setAuthCode] = useState(''); const [showPw, setShowPw] = useState(false);
   const [pwSuccess, setPwSuccess] = useState(false); const [pwError, setPwError] = useState('');
   const [cacheCleared, setCacheCleared] = useState(false);
   const [schemaCopied, setSchemaCopied] = useState(false);
+  const [storageLocation, setStorageLocationState] = useState<StorageLocation>(() => getStorageLocation());
+  const [storageStatus, setStorageStatus] = useState<'idle' | 'working' | 'done' | 'denied'>('idle');
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const handlePickStorageLocation = async (loc: StorageLocation) => {
+    if (loc === storageLocation) return;
+    setStorageStatus('working'); setStorageError(null);
+    const result = await changeStorageLocation(loc, getCurrentDataSnapshot());
+    if (result.granted) {
+      setStorageLocationState(loc);
+      setStorageStatus('done');
+      setTimeout(() => setStorageStatus('idle'), 3000);
+    } else {
+      setStorageStatus('denied');
+      setStorageError(result.reason || 'الإذن مرفوض');
+    }
+  };
   const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
   const canSave = newPassword.length > 0 && newPassword === confirmPassword && authCode === REQUIRED_AUTH_CODE;
   const handleSavePw = () => {
@@ -1030,6 +1057,44 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
         {cacheCleared && <div className="mb-2 px-3 py-2 rounded-xl text-xs text-green-400 flex items-center gap-2" style={{ background: 'rgba(107,191,122,0.1)' }}><Check size={12} /> تم المسح</div>}
         <button onClick={async () => { try { if (caches) { const names = await caches.keys(); await Promise.all(names.map(n => caches.delete(n))); } setCacheCleared(true); setTimeout(() => setCacheCleared(false), 3000); } catch {} }}
           className="px-3 py-2 rounded-xl text-sm font-medium bg-red-500/20 text-red-400">مسح الذاكرة المؤقتة</button>
+
+        {/* مكان التخزين على الجهاز */}
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <p className="text-sm font-bold text-white mb-1">مكان التخزين على الهاتف</p>
+          <p className="text-xs text-white/40 mb-3">
+            بالإضافة للسحابة، بتتحفظ نسخة احتياطية من كل البيانات كملف حقيقي على تخزين الجهاز نفسه. اختر المكان اللي تحبه — لو محتاج إذن هيتطلب منك أول مرة.
+          </p>
+          <div className="space-y-2">
+            {(Object.keys(STORAGE_LOCATION_LABELS) as StorageLocation[]).map((loc) => (
+              <button
+                key={loc}
+                onClick={() => handlePickStorageLocation(loc)}
+                disabled={storageStatus === 'working'}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-start transition-all"
+                style={{
+                  background: storageLocation === loc ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: storageLocation === loc ? '1px solid rgba(249,115,22,0.4)' : '1px solid rgba(255,255,255,0.06)',
+                  color: storageLocation === loc ? '#f97316' : 'white',
+                  cursor: storageStatus === 'working' ? 'wait' : 'pointer',
+                }}
+              >
+                <span className="font-medium">{STORAGE_LOCATION_LABELS[loc]}</span>
+                {storageLocation === loc && <Check size={14} />}
+              </button>
+            ))}
+          </div>
+          {storageStatus === 'working' && (
+            <p className="text-xs mt-2 text-white/40 flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> جاري طلب الإذن ونقل البيانات...</p>
+          )}
+          {storageStatus === 'done' && (
+            <p className="text-xs mt-2 text-[#6BBF7A] flex items-center gap-1.5"><Check size={12} /> تم تغيير مكان التخزين ونقل آخر نسخة بيانات إليه.</p>
+          )}
+          {storageStatus === 'denied' && (
+            <p className="text-xs mt-2 text-red-400">
+              فشل: {storageError}. جرب من إعدادات أندرويد للتطبيق نفسه (الأذونات ← التخزين) وفعّل الإذن يدويًا لو النظام مامنعكش من قبل.
+            </p>
+          )}
+        </div>
       </div>
       {/* Supabase Schema Reference */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -1247,7 +1312,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             {activeTab === 'analytics' && <AnalyticsTab content={contentItems} records={records} files={files} />}
             {activeTab === 'trash' && <TrashTab sections={sections} setSections={setSections} content={contentItems} setContent={setContentItems} records={records} setRecords={setRecords} files={files} setFiles={setFiles} />}
             {activeTab === 'display' && <DisplayScreen />}
-            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} />}
+            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} getCurrentDataSnapshot={() => ({ appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files })} />}
 
           </motion.div>
         </AnimatePresence>
