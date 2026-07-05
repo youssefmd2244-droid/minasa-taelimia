@@ -460,7 +460,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                   {editingContent?.id === item.id
                     ? <input type="text" value={editingContent.title} onChange={e => setEditingContent({ ...editingContent, title: e.target.value })}
                         className="w-full px-2 py-1.5 rounded-lg text-white outline-none text-sm mb-1" style={{ background: 'rgba(255,255,255,0.08)' }} autoFocus />
-                    : <p className="text-white font-medium text-sm truncate">{item.title}</p>}
+                    : <p className="text-white font-medium text-sm truncate" style={{ unicodeBidi: 'plaintext' }}>{item.title}</p>}
                   <p className="text-xs text-white/30 truncate">{sections.find(s => s.id === item.sectionId)?.title}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -656,7 +656,7 @@ function RecordTab({ records, setRecords, sections, onMediaView }: {
                     <Mic size={16} className="text-red-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium text-sm truncate">{r.title}</p>
+                    <p className="text-white font-medium text-sm truncate" style={{ unicodeBidi: 'plaintext' }}>{r.title}</p>
                     <p className="text-xs text-white/30">{sections.find(s => s.id === r.sectionId)?.title || r.section}</p>
                   </div>
                   <button onClick={() => startEdit(r)} className="p-1.5 rounded-lg hover:bg-white/10"><Edit3 size={13} className="text-white/50" /></button>
@@ -803,7 +803,7 @@ function FilesTab({ files, setFiles, sections, onMediaView }: {
               <div className="flex items-center gap-3">
                 <span className="text-2xl flex-shrink-0">{fileTypeIcon[f.fileType]}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium text-sm truncate">{f.title}</p>
+                  <p className="text-white font-medium text-sm truncate" style={{ unicodeBidi: 'plaintext' }}>{f.title}</p>
                   <p className="text-xs text-white/30">{fileTypeLabel[f.fileType]} · {sections.find(s => s.id === f.sectionId)?.title}</p>
                 </div>
                 <button onClick={() => startEdit(f)} className="p-1.5 rounded-lg hover:bg-white/10 flex-shrink-0"><Edit3 size={13} className="text-white/50" /></button>
