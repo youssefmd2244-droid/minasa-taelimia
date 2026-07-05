@@ -68,15 +68,38 @@ const DEFAULT_DATA: AdminData = {
     { id: 3, title: 'المستوى الأول — لغة عربية', isVisible: true, isDeleted: false, displayOrder: 3 },
     { id: 4, title: 'المستوى الثاني — فنون', isVisible: true, isDeleted: false, displayOrder: 4 },
   ],
-  contentItems: [
-    { id: 1, sectionId: 1, title: 'أساسيات الجبر', type: 'video', contentBody: 'شرح مبسط', fileUrl: '', isFeatured: true, showOnHome: true, allowDownload: false, isDeleted: false },
-    { id: 2, sectionId: 2, title: 'التجارب العلمية', type: 'pdf', contentBody: '', fileUrl: '', isFeatured: true, showOnHome: true, allowDownload: false, isDeleted: false },
-  ],
+  // ملحوظة: هنا كان فيه عنصرين تجريبيين ("أساسيات الجبر" فيديو،
+  // و"التجارب العلمية" PDF) بملف فارغ (fileUrl: '') — يعني كانا هيظهروا
+  // للطلاب كأنهم محتوى حقيقي بس من غير أي فيديو/ملف فعلي وراهم. شيلناهم
+  // نهائيًا؛ لوحة الإدارة دلوقتي بتبدأ بأقسام بس من غير أي محتوى وهمي.
+  contentItems: [],
   records: [], files: [],
 };
 
+/**
+ * تنظيف تلقائي لأي عناصر تجريبية قديمة كانت اتحفظت فعلاً في بيانات
+ * المستخدم قبل هذا التحديث (لو كانت لوحة الإدارة اتفتحت قبل كده لما كان
+ * DEFAULT_DATA لسه فيه العنصرين التجريبيين دول، يبقوا اتحفظوا مع باقي
+ * المحتوى الحقيقي وبقوا جزء من البيانات المتزامنة). بيشيلهم بس لو
+ * تطابقوا بالظبط مع بصمة العنصر التجريبي (نفس العنوان + النوع + ملف
+ * فارغ) — عشان محتوى حقيقي بنفس العنوان بالصدفة (ومعاه ملف فعلي) ميتأثرش.
+ */
+function stripKnownDemoSeed(items: ContentItem[]): ContentItem[] {
+  return items.filter((item) => {
+    const isFakeAlgebraVideo = item.title === 'أساسيات الجبر' && item.type === 'video' && !item.fileUrl;
+    const isFakeExperimentsPdf = item.title === 'التجارب العلمية' && item.type === 'pdf' && !item.fileUrl;
+    return !isFakeAlgebraVideo && !isFakeExperimentsPdf;
+  });
+}
+
 function loadData(): AdminData {
-  try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) return { ...DEFAULT_DATA, ...JSON.parse(raw) }; } catch {}
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const merged = { ...DEFAULT_DATA, ...JSON.parse(raw) };
+      return { ...merged, contentItems: stripKnownDemoSeed(merged.contentItems) };
+    }
+  } catch {}
   return DEFAULT_DATA;
 }
 function saveData(data: AdminData) {
@@ -1062,7 +1085,7 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
         <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <p className="text-sm font-bold text-white mb-1">مكان التخزين على الهاتف</p>
           <p className="text-xs text-white/40 mb-3">
-            بالإضافة للسحابة، بتتحفظ نسخة احتياطية من كل البيانات كملف حقيقي على تخزين الجهاز نفسه. اختر المكان اللي تحبه — لو محتاج إذن هيتطلب منك أول مرة.
+            بالإضافة للسحابة، بتتحفظ نسخة احتياطية من كل البيانات كملف حقيقي على تخزين الجهاز. "خارجي" بيشمل كارت الميموري تلقائيًا لو الجهاز مركّب فيه واحد ومتظبط كتخزين افتراضي. "الاثنين مع بعض" (الموصى به): لو مكان واحد فشل، التاني بيفضل شغال عادي من غير ما تضيع أي بيانات.
           </p>
           <div className="space-y-2">
             {(Object.keys(STORAGE_LOCATION_LABELS) as StorageLocation[]).map((loc) => (
@@ -1084,15 +1107,13 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
             ))}
           </div>
           {storageStatus === 'working' && (
-            <p className="text-xs mt-2 text-white/40 flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> جاري طلب الإذن ونقل البيانات...</p>
+            <p className="text-xs mt-2 text-white/40 flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> جاري نقل البيانات للمكان الجديد...</p>
           )}
           {storageStatus === 'done' && (
             <p className="text-xs mt-2 text-[#6BBF7A] flex items-center gap-1.5"><Check size={12} /> تم تغيير مكان التخزين ونقل آخر نسخة بيانات إليه.</p>
           )}
           {storageStatus === 'denied' && (
-            <p className="text-xs mt-2 text-red-400">
-              فشل: {storageError}. جرب من إعدادات أندرويد للتطبيق نفسه (الأذونات ← التخزين) وفعّل الإذن يدويًا لو النظام مامنعكش من قبل.
-            </p>
+            <p className="text-xs mt-2 text-red-400">{storageError}</p>
           )}
         </div>
       </div>
@@ -1196,7 +1217,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
       setNotifications(merged.notifications);
       setDownloadFeatureEnabled(merged.downloadFeatureEnabled);
       setSections(merged.sections);
-      setContentItems(merged.contentItems);
+      setContentItems(stripKnownDemoSeed(merged.contentItems));
       setRecords(merged.records);
       setFiles(merged.files);
     });
