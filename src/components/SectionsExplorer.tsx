@@ -10,7 +10,7 @@
  * مصري/إنجليزي). الضغط على أي قسم يفتح محتوياته (نصوص، صور، فيديوهات،
  * صوتيات، وملفات PDF/Word/Excel/PowerPoint/ZIP) في نفس الصفحة.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, ChevronLeft, BookOpen, Video, Image as ImageIcon, Music, FileText,
@@ -55,8 +55,91 @@ const LANG_OPTIONS: { code: Language; label: string }[] = [
   { code: 'en', label: 'EN' },
 ];
 
+/**
+ * useVideoThumbnail — بيلتقط أول فريم حقيقي من الفيديو ويرجّعه كصورة.
+ * ─────────────────────────────────────────────────────────────────
+ * ليه كان بيظهر أسود قبل كده: كنا بنعمل الفيديو بـ
+ * `document.createElement('video')` من غير ما نحطه فعليًا جوه الصفحة
+ * (DOM). متصفحات الموبايل (خصوصًا WebView بتاع تطبيق أندرويد المبني
+ * بـ Capacitor) بترفض تحمّل أي بيانات فيديو لعنصر مش متصل بالصفحة
+ * فعليًا — توفير للبيانات/الباتري — فحدث 'loadeddata' مكانش بيحصل
+ * خالص، والصورة المصغّرة فضلت فاضية للأبد.
+ * الحل: نضيف الفيديو فعليًا جوه الصفحة (مخفي تمامًا بـ 1px بعيد عن
+ * الشاشة) عشان يتحمّل زي أي فيديو عادي، ونجرب `play()` (مكتوم الصوت،
+ * فمسموح تلقائيًا) عشان نضمن فك أول فريم فعليًا حتى لو `loadeddata`
+ * لوحدها مش كافية على بعض الأجهزة، وبعدين نلقط الفريم ونشيل العنصر.
+ */
+function useVideoThumbnail(src: string | null | undefined): string | null {
+  const [thumb, setThumb] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!src) { setThumb(null); return; }
+    let cancelled = false;
+    let captured = false;
+
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', 'true');
+    video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+    video.src = src;
+
+    const capture = () => {
+      if (captured || cancelled) return;
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 180;
+        const ctx = canvas.getContext('2d');
+        if (ctx && canvas.width && canvas.height) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          captured = true;
+          setThumb(canvas.toDataURL('image/jpeg', 0.6));
+          video.pause();
+        }
+      } catch {
+        // فشل الالتقاط (مثلاً CORS) — تفضل الأيقونة الافتراضية بدل الصورة
+      }
+    };
+
+    const onLoadedData = () => {
+      // نحاول نشغّله لحظة عشان نضمن فك الفريم فعليًا (بعض متصفحات
+      // الموبايل مش بترسم أي فريم إلا بعد play() حقيقي)، ثم نوقفه فورًا.
+      const p = video.play();
+      if (p && typeof p.then === 'function') {
+        p.then(() => { requestAnimationFrame(capture); }).catch(() => { capture(); });
+      } else {
+        requestAnimationFrame(capture);
+      }
+    };
+    const onTimeUpdate = () => capture();
+    const onError = () => { /* هيبان بالأيقونة الافتراضية بدل الصورة */ };
+
+    video.addEventListener('loadeddata', onLoadedData);
+    video.addEventListener('timeupdate', onTimeUpdate);
+    video.addEventListener('error', onError);
+    document.body.appendChild(video);
+    video.load();
+
+    return () => {
+      cancelled = true;
+      video.removeEventListener('loadeddata', onLoadedData);
+      video.removeEventListener('timeupdate', onTimeUpdate);
+      video.removeEventListener('error', onError);
+      try { video.pause(); } catch { /* ignore */ }
+      video.src = '';
+      video.remove();
+    };
+  }, [src]);
+
+  return thumb;
+}
+
 function ContentCard({ item, gradient, onOpen }: { item: ContentRow; gradient: string; onOpen: () => void }) {
   const isMedia = item.type === 'image' || item.type === 'video';
+  const videoThumb = useVideoThumbnail(item.type === 'video' ? item.file_url : null);
   return (
     <motion.button
       layout
@@ -82,7 +165,11 @@ function ContentCard({ item, gradient, onOpen }: { item: ContentRow; gradient: s
         )}
         {item.type === 'video' && item.file_url && (
           <>
-            <video src={item.file_url} muted preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {videoThumb ? (
+              <img src={videoThumb} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(107,191,122,0.25), rgba(20,20,30,0.6))' }} />
+            )}
             <div style={{
               position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(0,0,0,0.25)',
@@ -111,6 +198,7 @@ function ContentCard({ item, gradient, onOpen }: { item: ContentRow; gradient: s
         <span style={{
           color: 'white', fontSize: '12.5px', fontWeight: 600, lineHeight: 1.4,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          unicodeBidi: 'plaintext',
         }}>
           {item.title}
         </span>
@@ -161,7 +249,7 @@ function ContentLightbox({ item, onClose }: { item: ContentRow; onClose: () => v
           padding: '0 20px 30px', gap: '16px', overflowY: 'auto',
         }}
       >
-        <h3 style={{ color: 'white', fontSize: '17px', fontWeight: 700, textAlign: 'center', margin: 0 }}>{item.title}</h3>
+        <h3 style={{ color: 'white', fontSize: '17px', fontWeight: 700, textAlign: 'center', margin: 0, unicodeBidi: 'plaintext' }}>{item.title}</h3>
         {item.type === 'image' && item.file_url && (
           <ZoomableImage src={item.file_url} alt={item.title} style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '14px', objectFit: 'contain' }} />
         )}
