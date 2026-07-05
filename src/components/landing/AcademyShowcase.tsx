@@ -8,6 +8,7 @@ import {
   TrendingUp,
   CheckCircle,
 } from 'lucide-react';
+import { useContent } from '../../hooks/useContent';
 
 // ========== SECTION 1: Academy Hero ==========
 function AcademyHero() {
@@ -81,7 +82,7 @@ function AcademyHero() {
               height: '1.2em',
             }}
           >
-            Book a Free Trial Class
+            احجز حصة تجريبية مجانية
           </span>
           <div
             style={{
@@ -114,13 +115,13 @@ function AcademyHero() {
             WebkitFontSmoothing: 'antialiased',
           }}
         >
-          We build learning experiences
+          نصمّم تجربة تعليمية
           <br />
           <span style={{ color: 'rgba(255,255,255,0.55)' }}>
-            for students ready to master
+            لكل طالب جاهز يتقن
           </span>
           <br />
-          any subject, online.
+          أي مادة، أونلاين.
         </h1>
 
         {/* CTA row */}
@@ -163,8 +164,8 @@ function AcademyHero() {
                 'translateY(0)';
             }}
           >
-            Start Free Trial
-            <ArrowRight size={16} />
+            ابدأ مجانًا
+            <ArrowRight size={16} style={{ transform: 'scaleX(-1)' }} />
           </a>
 
           {/* Accredited Curriculum badge */}
@@ -201,7 +202,7 @@ function AcademyHero() {
                 color: 'rgba(255,255,255,0.8)',
               }}
             >
-              Accredited Curriculum
+              منهج معتمد
             </span>
             <span
               style={{
@@ -214,7 +215,7 @@ function AcademyHero() {
                 border: '1px solid rgba(249,115,22,0.3)',
               }}
             >
-              Verified
+              موثّق
             </span>
           </div>
         </div>
@@ -226,10 +227,10 @@ function AcademyHero() {
 // ========== SECTION 2: Teaching Philosophy ==========
 function TeachingPhilosophy() {
   const features = [
-    { icon: <BookOpen size={18} />, text: 'Structured curriculum per level' },
-    { icon: <Users size={18} />, text: 'Expert instructors, live Q&A' },
-    { icon: <Award size={18} />, text: 'Real certificates upon completion' },
-    { icon: <TrendingUp size={18} />, text: 'Progress tracked per student' },
+    { icon: <BookOpen size={18} />, text: 'منهج منظم لكل مستوى' },
+    { icon: <Users size={18} />, text: 'مدرّسون متخصصون وأسئلة مباشرة' },
+    { icon: <Award size={18} />, text: 'شهادات حقيقية عند إتمام المستوى' },
+    { icon: <TrendingUp size={18} />, text: 'متابعة تقدّم كل طالب' },
   ];
 
   return (
@@ -265,7 +266,7 @@ function TeachingPhilosophy() {
             }}
           >
             <span style={{ fontSize: '12px', fontWeight: 500, color: '#555' }}>
-              Our Teaching Philosophy
+              فلسفتنا في التدريس
             </span>
           </div>
 
@@ -280,8 +281,7 @@ function TeachingPhilosophy() {
               marginBottom: '24px',
             }}
           >
-            Mastery-driven teaching, delivering results in every subject and
-            beyond.
+            تعليم قائم على الإتقان، بنتائج حقيقية في كل مادة.
           </h2>
 
           <p
@@ -292,8 +292,7 @@ function TeachingPhilosophy() {
               marginBottom: '36px',
             }}
           >
-            Through structured lessons, active practice and feedback we help
-            every student reach their full academic potential.
+            من خلال دروس منظمة وتدريب عملي ومتابعة مستمرة، بنساعد كل طالب يوصل لأقصى إمكانياته الدراسية.
           </p>
 
           {/* Feature list */}
@@ -363,8 +362,8 @@ function TeachingPhilosophy() {
                 'translateY(0)';
             }}
           >
-            About our teaching method
-            <ArrowRight size={16} />
+            تعرف على أسلوبنا في التدريس
+            <ArrowRight size={16} style={{ transform: 'scaleX(-1)' }} />
           </a>
         </div>
 
@@ -429,40 +428,51 @@ function TeachingPhilosophy() {
 }
 
 // ========== SECTION 3: Featured Courses ==========
+const FEATURED_TYPE_TAG: Record<string, string> = {
+  video: 'فيديو مميز', pdf: 'ملف PDF', image: 'صورة', text: 'محتوى نصي',
+  word: 'مستند Word', excel: 'جدول بيانات', powerpoint: 'عرض تقديمي',
+  zip: 'ملف مضغوط', audio: 'تسجيل صوتي',
+};
+
+const FEATURED_VISUAL_THEMES = [
+  { gradient: 'linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 100%)', accent: '#7c3aed', aspectRatio: '329/246', circleSize: 148, emoji: '📐' },
+  { gradient: 'linear-gradient(135deg, #0a1a0a 0%, #0a2010 100%)', accent: '#16a34a', aspectRatio: '1/1', circleSize: 168, emoji: '✍️' },
+];
+
 function FeaturedCourses() {
   const [hover1, setHover1] = useState(false);
   const [hover2, setHover2] = useState(false);
+  const { items } = useContent();
 
-  const courses = [
-    {
-      id: 1,
-      title: 'Calculus Mastery',
-      tag: 'Top-rated 2025',
-      description:
-        'Top-rated course of 2025 — an interactive video curriculum driving record completion rates.',
-      gradient: 'linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 100%)',
-      accent: '#7c3aed',
-      aspectRatio: '329/246',
-      circleSize: 148,
-      hovered: hover1,
-      setHovered: setHover1,
-      emoji: '📐',
-    },
-    {
-      id: 2,
-      title: 'Creative Writing Lab',
-      tag: 'Project-based',
-      description:
-        'Transforming a dated curriculum into an engaging, project-based learning experience.',
-      gradient: 'linear-gradient(135deg, #0a1a0a 0%, #0a2010 100%)',
-      accent: '#16a34a',
-      aspectRatio: '1/1',
-      circleSize: 168,
-      hovered: hover2,
-      setHovered: setHover2,
-      emoji: '✍️',
-    },
-  ];
+  // بيعرض أول عنصرين اتحددوا "مميز" فعلاً من لوحة التحكم — مش محتوى
+  // وهمي ثابت. لو الأدمن لسه مامختارش أي حاجة مميزة، بيظهر بدل كده
+  // كارت إرشادي بسيط بيوضح إزاي يفعّلها، بدل ما يفضل شكل تجريبي.
+  const featured = items.filter((i) => i.is_featured).slice(0, 2);
+  const hovers = [hover1, hover2];
+  const setHovers = [setHover1, setHover2];
+
+  const courses = featured.length > 0
+    ? featured.map((item, i) => ({
+        id: item.id,
+        title: item.title,
+        tag: FEATURED_TYPE_TAG[item.type] ?? 'محتوى مميز',
+        description: item.content_body || 'من أحدث المحتوى المميز المتاح على المنصة.',
+        ...FEATURED_VISUAL_THEMES[i % FEATURED_VISUAL_THEMES.length],
+        hovered: hovers[i],
+        setHovered: setHovers[i],
+      }))
+    : [
+        {
+          id: -1, title: 'مفيش محتوى مميز لسه', tag: 'من لوحة التحكم',
+          description: 'حدد أي عنصر بعلامة "مميز" (⭐) من تبويب المحتوى في لوحة التحكم، وهيظهر هنا تلقائيًا.',
+          ...FEATURED_VISUAL_THEMES[0], hovered: hover1, setHovered: setHover1,
+        },
+        {
+          id: -2, title: 'محتوى جديد كل فترة', tag: 'تحديث مستمر',
+          description: 'كل ما تضاف مواد جديدة وتتحدد كمميزة، هتلاقيها هنا فورًا لكل الطلاب.',
+          ...FEATURED_VISUAL_THEMES[1], hovered: hover2, setHovered: setHover2,
+        },
+      ];
 
   return (
     <div
@@ -504,12 +514,12 @@ function FeaturedCourses() {
                   justifyContent: 'center',
                 }}
               >
-                2
+                {courses.length}
               </span>
               <span
                 style={{ fontSize: '13px', color: '#555', fontWeight: 500 }}
               >
-                Top-rated student outcomes
+                أفضل تقييمات الطلاب
               </span>
             </div>
 
@@ -523,7 +533,7 @@ function FeaturedCourses() {
                 letterSpacing: '-0.04em',
               }}
             >
-              Our courses
+              محتوى مميز
             </h2>
           </div>
 
@@ -549,8 +559,8 @@ function FeaturedCourses() {
               (e.currentTarget as HTMLAnchorElement).style.background = '#0a0a0a';
             }}
           >
-            View all courses
-            <ArrowRight size={14} />
+            عرض كل الأقسام
+            <ArrowRight size={14} style={{ transform: 'scaleX(-1)' }} />
           </a>
         </div>
 
@@ -694,9 +704,6 @@ function FeaturedCourses() {
                         color="#f97316"
                       />
                     ))}
-                    <span style={{ fontSize: '13px', color: '#888', marginLeft: '6px' }}>
-                      5.0
-                    </span>
                   </div>
 
                   <div
@@ -710,7 +717,7 @@ function FeaturedCourses() {
                     }}
                   >
                     <CheckCircle size={14} />
-                    Accredited
+                    معتمد
                   </div>
                 </div>
               </div>
