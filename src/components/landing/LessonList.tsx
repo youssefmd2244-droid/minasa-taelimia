@@ -109,7 +109,7 @@ export default function LessonList({ sectionId, limit, onlyShowOnHome }: LessonL
                     style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', display: 'block' }}
                   />
                 ) : (
-                  <VideoPlayer src={item.file_url as string} maxHeight="260px" borderRadius="10px" />
+                  <VideoPlayer src={item.file_url as string} poster={item.poster_url || undefined} maxHeight="260px" borderRadius="10px" />
                 )}
               </div>
             )}
