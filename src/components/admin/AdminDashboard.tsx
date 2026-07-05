@@ -167,19 +167,31 @@ const readFiles = async (files: File[], folder: string = 'misc'): Promise<{ url:
  * رفع الفيديو نفسه — بيكمّل عادي بس من غير صورة مصغّرة.
  */
 const readMediaFile = async (file: File, folder: string = 'content'): Promise<{ url: string; name: string; posterUrl?: string }> => {
-  const url = await readFile(file, folder);
-  if (!file.type.startsWith('video/')) return { url, name: file.name };
-  try {
-    const posterBlob = await captureVideoPoster(file);
-    if (posterBlob) {
-      const posterFile = new File([posterBlob], `${file.name.replace(/\.[^/.]+$/, '')}_poster.jpg`, { type: 'image/jpeg' });
-      const posterResult = await uploadMediaFile(posterFile, `${folder}_posters`);
-      if (posterResult.url) return { url, name: file.name, posterUrl: posterResult.url };
-    }
-  } catch {
-    // فشل توليد أو رفع الـ poster — نكمل من غير صورة مصغّرة بهدوء
+  if (!file.type.startsWith('video/')) {
+    const url = await readFile(file, folder);
+    return { url, name: file.name };
   }
-  return { url, name: file.name };
+  // مهم: بنرفع الفيديو ونولّد/نرفع الـ poster في نفس الوقت (مش الواحد
+  // بعد التاني بالتتابع) — عشان إضافة ميزة الصورة المصغّرة متخليش رفع
+  // الفيديو حسّه أبطأ بكتير من قبل. العمليتين مستقلتين تمامًا عن بعض:
+  // توليد الصورة بيحصل محليًا من نفس ملف الفيديو (من غير ما يعدّل عليه)
+  // في نفس اللحظة اللي بيترفع فيها، فمفيش أي تعارض بينهم.
+  const [url, posterUrl] = await Promise.all([
+    readFile(file, folder),
+    (async (): Promise<string | undefined> => {
+      try {
+        const posterBlob = await captureVideoPoster(file);
+        if (!posterBlob) return undefined;
+        const posterFile = new File([posterBlob], `${file.name.replace(/\.[^/.]+$/, '')}_poster.jpg`, { type: 'image/jpeg' });
+        const posterResult = await uploadMediaFile(posterFile, `${folder}_posters`);
+        return posterResult.url || undefined;
+      } catch {
+        // فشل توليد أو رفع الـ poster — نكمل من غير صورة مصغّرة بهدوء
+        return undefined;
+      }
+    })(),
+  ]);
+  return { url, name: file.name, posterUrl };
 };
 
 const readMediaFiles = async (files: File[], folder: string = 'content'): Promise<{ url: string; name: string; posterUrl?: string }[]> =>
