@@ -254,7 +254,7 @@ function ContentLightbox({ item, onClose }: { item: ContentRow; onClose: () => v
           <ZoomableImage src={item.file_url} alt={item.title} style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '14px', objectFit: 'contain' }} />
         )}
         {item.type === 'video' && item.file_url && (
-          <VideoPlayer src={item.file_url} autoPlay borderRadius="14px" maxHeight="60vh"
+          <VideoPlayer src={item.file_url} poster={item.poster_url || undefined} autoPlay borderRadius="14px" maxHeight="60vh"
             onFloatingChange={setVideoFloating} onCloseFloating={onClose} />
         )}
         {isAudio && item.file_url && (
