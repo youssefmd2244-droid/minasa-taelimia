@@ -10,7 +10,6 @@ import DisplayScreen from './DisplayScreen';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
 import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile } from '../../lib/adminBridge';
 import { writeAppDataToDevice, getStorageLocation, changeStorageLocation, STORAGE_LOCATION_LABELS, type StorageLocation } from '../../lib/deviceStorage';
-import { captureVideoPoster } from '../../lib/videoThumbnail';
 import {
   fetchAllComments, setCommentVisibility, replyToComment, deleteComment, subscribeComments,
   type PublicCommentRow,
@@ -158,14 +157,12 @@ const readFiles = async (files: File[], folder: string = 'misc'): Promise<{ url:
   Promise.all(files.map(async (file) => ({ url: await readFile(file, folder), name: file.name })));
 
 /**
- * زي readFile العادية، بس مبقاش بيستنى توليد صورة الـ poster خالص —
- * الفيديو بيترفع لوحده وبس، وبيرجّع الرابط فورًا أول ما يخلص الرفع
- * الفعلي على الشبكة (زي أي ملف تاني بالظبط). توليد ورفع الـ poster
- * بقى مسؤولية دالة منفصلة (generatePosterInBackground تحت) بتتنده
- * على مسارها الخاص من غير ما "الرفع" يفضل شغال في الواجهة لحد ما
- * تخلص هي كمان — سبب فعلي لبطء ظاهري كان موجود قبل كده، لأن توليد
- * الـ poster محلياً (فك تشفير الفيديو كامل في المتصفح) ممكن ياخد وقت
- * أطول بكتير من رفع الملف نفسه على شبكة سريعة.
+ * زي readFile العادية، بس مبقاش بيولّد أي صورة poster تلقائيًا خالص —
+ * الفيديو بيترفع لوحده وبس، أسرع ما يمكن، من غير أي معالجة فيديو
+ * إضافية في المتصفح (فك تشفير الفيديو محليًا لالتقاط فريم كان بياخد
+ * وقت فعلي أطول من الرفع نفسه على شبكة سريعة، وده كان سبب البطء
+ * الملحوظ). صورة الغلاف بقت اختيار يدوي بالكامل من المعرض (زرار
+ * "اختيار صورة غلاف يدويًا") — انظر pickCustomPoster / pickCustomPosterForEdit.
  */
 const readMediaFile = async (file: File, folder: string = 'content'): Promise<{ url: string; name: string }> => {
   const url = await readFile(file, folder);
@@ -174,28 +171,6 @@ const readMediaFile = async (file: File, folder: string = 'content'): Promise<{ 
 
 const readMediaFiles = async (files: File[], folder: string = 'content'): Promise<{ url: string; name: string }[]> =>
   Promise.all(files.map((file) => readMediaFile(file, folder)));
-
-/**
- * يولّد ويرفع صورة الـ poster لفيديو في الخلفية تمامًا (fire-and-forget)
- * — بينده onReady لما تجهز فعليًا (ثواني بعد ما الفيديو يخلص رفعه)
- * من غير ما يأخّر ظهور "تم الرفع" ولا يوقف أي حاجة تانية في الشاشة.
- * فشل التوليد أو الرفع (نادر) بيتجاهل بهدوء — الفيديو بيفضل شغال عادي
- * بس من غير صورة مصغّرة جاهزة.
- */
-const generatePosterInBackground = (file: File, folder: string, onReady: (posterUrl: string) => void): void => {
-  if (!file.type.startsWith('video/')) return;
-  void (async () => {
-    try {
-      const posterBlob = await captureVideoPoster(file);
-      if (!posterBlob) return;
-      const posterFile = new File([posterBlob], `${file.name.replace(/\.[^/.]+$/, '')}_poster.jpg`, { type: 'image/jpeg' });
-      const posterResult = await uploadMediaFile(posterFile, `${folder}_posters`);
-      if (posterResult.url) onReady(posterResult.url);
-    } catch {
-      // فشل توليد أو رفع الـ poster في الخلفية — نتجاهل بهدوء
-    }
-  })();
-};
 
 const fileTypeIcon: Record<string, string> = { pdf: '📄', word: '📝', excel: '📊', ppt: '📋', zip: '📦' };
 const fileTypeLabel: Record<string, string> = { pdf: 'PDF', word: 'Word', excel: 'Excel', ppt: 'PowerPoint', zip: 'ZIP' };
@@ -384,35 +359,21 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     try {
       const uploaded = await readMediaFiles(files, 'content');
       // أول ملف بيتحط كمعاينة/عنصر المحتوى الحالي اللي بتضيفه دلوقتي —
-      // الرفع خلص فعليًا هنا، مش مستنيين أي حاجة تانية.
+      // الرفع خلص فعليًا هنا، مش مستنيين أي حاجة تانية. مفيش توليد
+      // تلقائي لصورة الغلاف خالص دلوقتي — اختيارها بقى يدوي بس من
+      // المعرض (زرار "اختيار صورة غلاف يدويًا") عشان الرفع يفضل أسرع
+      // ما يمكن من غير أي معالجة فيديو إضافية.
       setUploadedFile(uploaded[0]);
-      // لو أول ملف فيديو، نولّد صورة الغلاف في الخلفية تمامًا. بتحدّث
-      // نفسها فين ما لقت الفيديو ده — سواء لسه في معاينة الإضافة
-      // (uploadedFile) أو خلاص اتضاف كعنصر محتوى فعلي (content)، عشان
-      // تشتغل صح مهما دست "إضافة" بسرعة قبل ما الصورة تجهز.
-      if (files[0]) {
-        const videoUrl = uploaded[0].url;
-        generatePosterInBackground(files[0], 'content', (posterUrl) => {
-          setUploadedFile(prev => (prev && prev.url === videoUrl ? { ...prev, posterUrl } : prev));
-          setContent(prev => prev.map(c => (c.fileUrl === videoUrl ? { ...c, posterUrl } : c)));
-        });
-      }
       // أي ملفات زيادة (اختيار أكتر من صورة/فيديو مرة واحدة) بتتحول
-      // كل واحدة لعنصر محتوى مستقل بنفس القسم/الإعدادات المختارة
+      // كل واحدة لعنصر محتوى مستقل بنفس القسم/الإعدادات المختارة —
+      // بدون أي توليد تلقائي لصورة غلاف؛ ممكن تتعدّل لاحقًا وتُختار
+      // صورتها يدويًا من شاشة التعديل.
       if (uploaded.length > 1) {
-        const extraItems = uploaded.slice(1).map(u => ({
+        setContent(prev => [...prev, ...uploaded.slice(1).map(u => ({
           id: genId(), sectionId, title: u.name, type: mediaType, contentBody: desc.trim(),
           fileUrl: u.url, posterUrl: undefined as string | undefined, isFeatured: false, showOnHome, allowDownload: false, isDeleted: false,
           attachments: [] as Attachment[],
-        }));
-        setContent(prev => [...prev, ...extraItems]);
-        extraItems.forEach((item, idx) => {
-          const f = files[idx + 1];
-          if (!f) return;
-          generatePosterInBackground(f, 'content', (posterUrl) => {
-            setContent(prev => prev.map(c => (c.id === item.id ? { ...c, posterUrl } : c)));
-          });
-        });
+        }))]);
       }
     } finally {
       setUploading(false);
@@ -420,9 +381,9 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     e.target.value = '';
   };
   /**
-   * بيسمح للأدمن يختار صورة يدويًا من معرض الصور (بدل الصورة اللي
-   * اتولّدت تلقائيًا من الفيديو) — مفيد لو الصورة التلقائية طلعت فريم
-   * غريب، أو الأدمن حابب يستخدم صورة غلاف مصمّمة خصيصًا للفيديو ده.
+   * بيسمح للأدمن يختار صورة غلاف يدويًا من معرض الصور للفيديو المرفوع.
+   * اختياري تمامًا — لو محدش اختار حاجة، الفيديو بيفضل شغال عادي بدون
+   * صورة غلاف مصغّرة.
    */
   const pickCustomPoster = async (file: File) => {
     setPosterUploading(true);
@@ -516,8 +477,8 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                 </button>
               </div>
             )}
-            {/* صورة غلاف الفيديو (poster) — بتتولّد تلقائيًا من الفيديو نفسه،
-                وممكن كمان تستبدلها بصورة تختارها بنفسك من المعرض */}
+            {/* صورة غلاف الفيديو (poster) — اختيار يدوي بالكامل من المعرض،
+                مفيش أي توليد تلقائي من الفيديو نفسه */}
             {mediaType === 'video' && uploadedFile && (
               <div className="mt-2 flex items-center gap-3 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#000' }}>
@@ -531,10 +492,10 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-white/60 mb-1">
-                    {posterUploading ? 'جاري رفع صورة الغلاف...' : uploadedFile.posterUrl ? 'صورة الغلاف جاهزة' : 'لسه بتتولّد صورة الغلاف تلقائيًا...'}
+                    {posterUploading ? 'جاري رفع صورة الغلاف...' : uploadedFile.posterUrl ? 'صورة الغلاف جاهزة' : 'من غير صورة غلاف — اختياري'}
                   </p>
                   <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
-                    <ImageIcon size={12} /> اختيار صورة غلاف يدويًا من المعرض
+                    <ImageIcon size={12} /> اختيار صورة غلاف من المعرض
                     <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) void pickCustomPoster(f); e.target.value = ''; }} className="hidden" />
                   </label>
                 </div>
@@ -621,7 +582,7 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                       )}
                       <label className="flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
                         <UploadCloud size={12} /> استبدال {editingContent.type === 'image' ? 'الصورة' : 'الفيديو'}
-                        <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; const r = await readMediaFile(nf, 'content'); setEditingUpload({ url: r.url, name: r.name }); generatePosterInBackground(nf, 'content', (posterUrl) => { setEditingUpload(prev => (prev && prev.url === r.url ? { ...prev, posterUrl } : prev)); setContent(prev => prev.map(c => (c.fileUrl === r.url ? { ...c, posterUrl } : c))); }); }} className="hidden" />
+                        <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; const r = await readMediaFile(nf, 'content'); setEditingUpload({ url: r.url, name: r.name }); }} className="hidden" />
                       </label>
                       {editingContent.type === 'video' && (
                         <div className="flex items-center gap-3 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
