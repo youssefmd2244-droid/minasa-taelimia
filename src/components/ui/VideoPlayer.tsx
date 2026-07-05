@@ -14,8 +14,14 @@
  *   3) في وضع العائم: زرار "تكبير" يرجّعه لمكانه الطبيعي، وزرار
  *      "إغلاق" يقفل الوضع العائم ويوقف الفيديو (وينده onCloseFloating
  *      لو موجودة عشان يقفل أي نافذة عرض حاضنة كمان).
- *   4) الأزرار دي متحطوطة تحت — جمب الكنترولز الأصلية للفيديو — مش
- *      فوقه، عشان متغطيش على الفيديو أو تتلخبط مع حاجة تانية.
+ *   4) الأزرار دي متحطوطة فوق — في أعلى الفيديو — مش تحت جمب كنترولز
+ *      الفيديو الأصلية. قبل كده كانت متحطوطة تحت (bottom: 44px) وده
+ *      كان بيخليها تتراكب فعليًا مع شريط تحكم الفيديو الأصلي بتاع
+ *      نظام أندرويد (اللي بيرسمه الـ WebView فوق كل حاجة بغض النظر عن
+ *      z-index)، فكان لمس الزرار أحيانًا بيروح لشريط التحكم الأصلي
+ *      بدل الزرار — يعني الزرار "موجود بس مش شغال صح". دلوقتي مفيش
+ *      أي تراكب خالص لأنهم في أعلى الفيديو وشريط التحكم الأصلي في
+ *      أسفله.
  *   5) بنحاول نولّد صورة مصغّرة (poster) تلقائيًا من أول فريم في
  *      الفيديو لو محدش مرّر poster جاهزة، عشان الفيديو ميظهرش مربّع
  *      أسود فاضي قبل ما تشغّله.
@@ -158,24 +164,37 @@ export default function VideoPlayer({ src, poster, autoPlay, borderRadius = '14p
           display: 'block',
         }}
       />
-      {/* أزرار التحكم الإضافية — تحت جمب كنترولز الفيديو الأصلية، مش فوقه */}
-      <div style={{ position: 'absolute', bottom: '44px', insetInlineEnd: '8px', display: 'flex', gap: '6px', zIndex: 2 }}>
+      {/* أزرار التحكم الإضافية — في أعلى الفيديو، بعيد تمامًا عن شريط
+          التحكم الأصلي اللي في الأسفل، عشان اللمس ميروحش له بالغلط */}
+      <div style={{ position: 'absolute', top: '8px', insetInlineEnd: '8px', display: 'flex', gap: '6px', zIndex: 5 }}>
         {!floating && (
           <>
-            <button onClick={enterFullscreen} title="ملء الشاشة" aria-label="ملء الشاشة" style={btnStyle}>
+            <button
+              onClick={(e) => { e.stopPropagation(); enterFullscreen(); }}
+              title="ملء الشاشة" aria-label="ملء الشاشة" style={{ ...btnStyle, touchAction: 'manipulation' }}
+            >
               <Maximize2 size={14} />
             </button>
-            <button onClick={enterFloating} title="تصغير — نافذة عائمة" aria-label="تصغير — نافذة عائمة" style={btnStyle}>
+            <button
+              onClick={(e) => { e.stopPropagation(); enterFloating(); }}
+              title="تصغير — نافذة عائمة" aria-label="تصغير — نافذة عائمة" style={{ ...btnStyle, touchAction: 'manipulation' }}
+            >
               <Minimize2 size={14} />
             </button>
           </>
         )}
         {floating && (
           <>
-            <button onClick={exitFloating} title="تكبير" aria-label="تكبير" style={btnStyle}>
+            <button
+              onClick={(e) => { e.stopPropagation(); exitFloating(); }}
+              title="تكبير" aria-label="تكبير" style={{ ...btnStyle, touchAction: 'manipulation' }}
+            >
               <Maximize2 size={14} />
             </button>
-            <button onClick={closeFloating} title="إغلاق" aria-label="إغلاق" style={btnStyle}>
+            <button
+              onClick={(e) => { e.stopPropagation(); closeFloating(); }}
+              title="إغلاق" aria-label="إغلاق" style={{ ...btnStyle, touchAction: 'manipulation' }}
+            >
               <X size={14} />
             </button>
           </>
