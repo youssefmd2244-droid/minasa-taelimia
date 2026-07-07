@@ -7,6 +7,7 @@ import {
   File, Music, StopCircle, ZoomIn, Monitor, Loader2, AlertCircle,
 } from 'lucide-react';
 import DisplayScreen from './DisplayScreen';
+import ContentSourcePanel from './ContentSourcePanel';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
 import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile } from '../../lib/adminBridge';
 import { writeAppDataToDevice, getStorageLocation, changeStorageLocation, STORAGE_LOCATION_LABELS, type StorageLocation } from '../../lib/deviceStorage';
@@ -1215,6 +1216,8 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
           )}
         </div>
       </div>
+      {/* مصدر نشر المحتوى (Supabase / GitHub / كلاهما) */}
+      <ContentSourcePanel />
       {/* Supabase Schema Reference */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-2 mb-3"><FileText size={16} className="text-white/60" /><h3 className="text-base font-bold text-white">سكيما قاعدة بيانات Supabase</h3></div>
