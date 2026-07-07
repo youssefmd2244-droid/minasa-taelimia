@@ -20,6 +20,7 @@ import { useLanguage, type Language } from '../i18n/LanguageContext';
 import { useSections } from '../hooks/useSections';
 import { useContent } from '../hooks/useContent';
 import type { ContentRow, ContentType } from '../lib/supabaseClient';
+import { gridItemProps } from '../lib/motionVariants';
 import ZoomableImage from './ui/ZoomableImage';
 import VideoPlayer from './ui/VideoPlayer';
 
@@ -137,7 +138,7 @@ function useVideoThumbnail(src: string | null | undefined): string | null {
   return thumb;
 }
 
-function ContentCard({ item, gradient, onOpen }: { item: ContentRow; gradient: string; onOpen: () => void }) {
+function ContentCard({ item, gradient, index, onOpen }: { item: ContentRow; gradient: string; index: number; onOpen: () => void }) {
   const isMedia = item.type === 'image' || item.type === 'video';
   // مهم: الأولوية دايمًا للصورة المصغّرة (poster_url) اللي اتولّدت ورُفعت
   // فعليًا وقت رفع الفيديو نفسه (انظر videoThumbnail.ts) — دي صورة جاهزة
@@ -151,9 +152,7 @@ function ContentCard({ item, gradient, onOpen }: { item: ContentRow; gradient: s
   return (
     <motion.button
       layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileTap={{ scale: 0.96 }}
+      {...gridItemProps(index)}
       onClick={onOpen}
       style={{
         position: 'relative', borderRadius: '16px', overflow: 'hidden',
@@ -486,10 +485,7 @@ export default function SectionsExplorer({ open, onClose }: SectionsExplorerProp
                     <motion.button
                       key={s.id}
                       layout
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.04, duration: 0.35 }}
-                      whileTap={{ scale: 0.97 }}
+                      {...gridItemProps(i)}
                       onClick={() => setActiveSectionId(s.id)}
                       style={{
                         position: 'relative', overflow: 'hidden', borderRadius: '18px', padding: '18px 14px',
@@ -524,6 +520,7 @@ export default function SectionsExplorer({ open, onClose }: SectionsExplorerProp
                     key={item.id}
                     item={item}
                     gradient={SECTION_GRADIENTS[i % SECTION_GRADIENTS.length]}
+                    index={i}
                     onOpen={() => setLightboxItem(item)}
                   />
                 ))}
