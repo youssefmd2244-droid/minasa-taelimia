@@ -9,8 +9,8 @@
  * بيانات JSON خفيفة بس — مش للصور/الفيديوهات الكبيرة (تفضل دايمًا على
  * Supabase Storage زي ما هي).
  */
-import { useState } from 'react';
-import { Github, Check, Loader2, AlertCircle, Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { useState, type CSSProperties } from 'react';
+import { GitBranch, Check, Loader2, AlertCircle, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import {
   getContentSource, setContentSource, getGithubConfig, setGithubConfig,
   testGithubConnection, type ContentSource, type GithubConfig,
@@ -51,12 +51,12 @@ export default function ContentSourcePanel() {
     setTestMessage(result.message || null);
   };
 
-  const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
+  const inp: CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
 
   return (
     <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="flex items-center gap-2 mb-3">
-        <Github size={16} className="text-white/60" />
+        <GitBranch size={16} className="text-white/60" />
         <h3 className="text-base font-bold text-white">مصدر نشر المحتوى</h3>
       </div>
       <p className="text-xs text-white/40 mb-3">
