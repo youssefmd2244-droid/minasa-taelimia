@@ -25,11 +25,14 @@ export default function LanguageSwitcher() {
       {open && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-[70]" onClick={() => setOpen(false)} />
 
-          {/* Dropdown */}
+          {/* Dropdown — z-[80] وليس z-50: القديم كان أوطى من عناصر الـ
+              HeroCarousel المطلقة (subject counter بتاعها z-index: 55)،
+              فكان بيظهر تحتها ويحصل تداخل/تشويش في النص بمجرد ما حد
+              يفتح القائمة فوق الصفحة الرئيسية. */}
           <div
-            className="absolute z-50 mt-2 rounded-xl overflow-hidden shadow-lg min-w-[160px]"
+            className="absolute z-[80] mt-2 rounded-xl overflow-hidden shadow-lg min-w-[160px]"
             style={{
               background: 'rgba(20, 20, 40, 0.95)',
               backdropFilter: 'blur(20px)',
