@@ -37,6 +37,19 @@ export default function ContentSourcePanel() {
     setContentSource(v);
   };
 
+  // بيحدّث state الفورم وكمان بيحفظ نفس اللحظة في localStorage. قبل كده كان
+  // الحفظ الفعلي بيحصل بس لما تدوس "حفظ إعدادات GitHub" بالزرار، فلو حد دخل
+  // البيانات ودوس على زرار "حفظ التغييرات" الكبير في الإعدادات (تحت) قبل ما
+  // يدوس الزرار ده تحديدًا، كانت إعدادات GitHub بتتقرا فاضية وقت الحفظ
+  // (owner/repo فاضيين) فالحفظ على GitHub كان بيفشل بصمت — وده اللي كان
+  // بيمنع أي محتوى جديد إنه يظهر عند المستخدمين في وضع GitHub. دلوقتي أي
+  // تغيير في أي حقل بيتحفظ فورًا زي ما بيحصل بالظبط مع اختيار المصدر نفسه.
+  const updateCfg = (patch: Partial<GithubConfig>) => {
+    const next = { ...cfg, ...patch };
+    setCfgState(next);
+    setGithubConfig(next);
+  };
+
   const handleSaveConfig = () => {
     setGithubConfig(cfg);
     setSaved(true);
@@ -94,22 +107,22 @@ export default function ContentSourcePanel() {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-white/40 block mb-1">اسم المالك (owner)</label>
-              <input type="text" value={cfg.owner} onChange={e => setCfgState({ ...cfg, owner: e.target.value.trim() })}
+              <input type="text" value={cfg.owner} onChange={e => updateCfg({ owner: e.target.value.trim() })}
                 placeholder="مثلاً: ghh" className="w-full px-3 py-2 rounded-xl text-white outline-none text-sm" style={inp} />
             </div>
             <div>
               <label className="text-xs text-white/40 block mb-1">اسم الريبو (repo)</label>
-              <input type="text" value={cfg.repo} onChange={e => setCfgState({ ...cfg, repo: e.target.value.trim() })}
+              <input type="text" value={cfg.repo} onChange={e => updateCfg({ repo: e.target.value.trim() })}
                 placeholder="مثلاً: eduverse-content" className="w-full px-3 py-2 rounded-xl text-white outline-none text-sm" style={inp} />
             </div>
             <div>
               <label className="text-xs text-white/40 block mb-1">الفرع (branch)</label>
-              <input type="text" value={cfg.branch} onChange={e => setCfgState({ ...cfg, branch: e.target.value.trim() || 'main' })}
+              <input type="text" value={cfg.branch} onChange={e => updateCfg({ branch: e.target.value.trim() || 'main' })}
                 placeholder="main" className="w-full px-3 py-2 rounded-xl text-white outline-none text-sm" style={inp} />
             </div>
             <div>
               <label className="text-xs text-white/40 block mb-1">مسار الملف (path)</label>
-              <input type="text" value={cfg.path} onChange={e => setCfgState({ ...cfg, path: e.target.value.trim() || 'content.json' })}
+              <input type="text" value={cfg.path} onChange={e => updateCfg({ path: e.target.value.trim() || 'content.json' })}
                 placeholder="content.json" className="w-full px-3 py-2 rounded-xl text-white outline-none text-sm" style={inp} />
             </div>
           </div>
@@ -117,7 +130,7 @@ export default function ContentSourcePanel() {
           <div>
             <label className="text-xs text-white/40 block mb-1">GitHub Token (للنشر فقط — بيتحفظ على جهازك بس)</label>
             <div className="relative">
-              <input type={showToken ? 'text' : 'password'} value={cfg.token} onChange={e => setCfgState({ ...cfg, token: e.target.value.trim() })}
+              <input type={showToken ? 'text' : 'password'} value={cfg.token} onChange={e => updateCfg({ token: e.target.value.trim() })}
                 placeholder="github_pat_..." className="w-full px-3 py-2 rounded-xl text-white outline-none text-sm pe-10" style={{ ...inp, direction: 'ltr' }} />
               <button type="button" onClick={() => setShowToken(!showToken)} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30">
                 {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
