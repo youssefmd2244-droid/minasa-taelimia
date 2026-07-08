@@ -4,12 +4,13 @@ import {
   Lock, Settings, BookOpen, FileText, MessageSquare, BarChart3, Trash2, Plus, Edit3, X,
   Check, Eye, EyeOff, Palette, Globe, Save, ArrowLeft, Home, Star, Shield, Power,
   Lightbulb, Bell, Image as ImageIcon, Video, UploadCloud, Type, Mic, MicOff, Download,
-  File, Music, StopCircle, ZoomIn, Monitor, Loader2, AlertCircle,
+  File, Music, StopCircle, ZoomIn, Monitor, Loader2, AlertCircle, GraduationCap, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import DisplayScreen from './DisplayScreen';
 import ContentSourcePanel from './ContentSourcePanel';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
 import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile } from '../../lib/adminBridge';
+import { EDUCATIONAL_COURSES } from '../ui/circular-gallery';
 import { writeAppDataToDevice, getStorageLocation, changeStorageLocation, STORAGE_LOCATION_LABELS, type StorageLocation } from '../../lib/deviceStorage';
 import {
   fetchAllComments, setCommentVisibility, replyToComment, deleteComment, subscribeComments,
@@ -21,7 +22,7 @@ import { genId } from '../../utils/id';
 const REQUIRED_AUTH_CODE = 'Yy2004//';
 const STORAGE_KEY = 'eduverse_admin_data';
 
-type Tab = 'dashboard' | 'settings' | 'sections' | 'content' | 'record' | 'files' | 'comments' | 'analytics' | 'trash' | 'display';
+type Tab = 'dashboard' | 'settings' | 'sections' | 'content' | 'record' | 'files' | 'comments' | 'analytics' | 'trash' | 'display' | 'gallery';
 
 interface Section { id: number; title: string; isVisible: boolean; isDeleted: boolean; displayOrder: number; }
 interface Attachment { url: string; name: string; type: 'image' | 'video' | 'audio'; }
@@ -45,6 +46,15 @@ interface FileItem {
   description?: string; sectionId: number; showOnHome: boolean;
   isDeleted: boolean; allowDownload: boolean; attachments?: Attachment[];
 }
+/** عنصر واحد في "مكتبة المواد الدراسية" — كارت الكورس اللي بيظهر في معرض
+ *  الصفحة الرئيسية (CoursesGallerySection). قبل كده كانت الكروت دي ثابتة
+ *  في الكود (EDUCATIONAL_COURSES) ومفيش أي طريقة لتعديلها إلا بتعديل
+ *  الكود نفسه؛ دلوقتي بقت جزء من بيانات لوحة الإدارة زي أي محتوى تاني،
+ *  يعني بتتزامن تلقائيًا لكل المستخدمين بمجرد ما الأدمن يحفظ. */
+interface GalleryCourse {
+  id: number; title: string; subtitle: string; badge?: string;
+  imageUrl: string; displayOrder: number; isDeleted: boolean;
+}
 // ملاحظة: التعليقات مش جزء من AdminData بقى — بقت متخزنة في جدول حقيقي
 // مستقل (public_comments، راجع src/lib/commentsBridge.ts) بدل ما تكون
 // بيانات وهمية جوه صف app_data المشترك، عشان تعليقات الزوار المتزامنة
@@ -52,6 +62,12 @@ interface FileItem {
 interface AdminData {
   sections: Section[]; contentItems: ContentItem[]; records: RecordItem[];
   files: FileItem[]; appName: string;
+  /** رابط أيقونة التطبيق (الشعار) اللي بيظهر جوه الموقع نفسه (هيدر/فافيكون/
+   *  أيقونة PWA للتثبيت الجديد على المتصفح) — راجع ملاحظة "الهوية البصرية"
+   *  في SettingsTab لتوضيح إن ده مختلف عن أيقونة التطبيق الأصلية المثبّتة
+   *  فعلاً على هاتف كل مستخدم (تلك بتتغير فقط بتحديث حقيقي للتطبيق). */
+  appIconUrl: string;
+  courses: GalleryCourse[];
   themeColors: string[]; maintenanceMode: boolean; rgbLighting: boolean;
   notifications: boolean; downloadFeatureEnabled: boolean;
 }
@@ -63,8 +79,24 @@ interface AdminDashboardProps {
   onExit?: () => void;
 }
 
+/** بذرة أولية لمكتبة المواد الدراسية: نفس الكروت الثمانية اللي كانت ثابتة
+ *  في الكود قبل كده (EDUCATIONAL_COURSES) — بنحوّلها هنا لصيغة GalleryCourse
+ *  عشان أول ما الأدمن يفتح اللوحة يلاقي بالظبط نفس اللي شايفه الطالب
+ *  حاليًا، من غير أي قفزة أو اختفاء للكروت الموجودة فعلاً. */
+const DEFAULT_GALLERY_COURSES: GalleryCourse[] = EDUCATIONAL_COURSES.map((c, i) => ({
+  id: i + 1,
+  title: c.title,
+  subtitle: c.subtitle || '',
+  badge: c.badge,
+  imageUrl: c.photo.url,
+  displayOrder: i + 1,
+  isDeleted: false,
+}));
+
 const DEFAULT_DATA: AdminData = {
   appName: 'EduVerse',
+  appIconUrl: '',
+  courses: DEFAULT_GALLERY_COURSES,
   themeColors: ['#F4845F', '#6BBF7A', '#E882B4', '#6EB5FF'],
   maintenanceMode: false, rgbLighting: true, notifications: true, downloadFeatureEnabled: false,
   sections: [
@@ -329,6 +361,145 @@ function SectionsTab({ sections, setSections }: { sections: Section[]; setSectio
             </motion.div>
           ))}
         </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Gallery Tab (مكتبة المواد الدراسية) ─── */
+function GalleryTab({ courses, setCourses }: { courses: GalleryCourse[]; setCourses: React.Dispatch<React.SetStateAction<GalleryCourse[]>> }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [title, setTitle] = useState('');
+  const [subtitle, setSubtitle] = useState('');
+  const [badge, setBadge] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const active = courses.filter(c => !c.isDeleted).sort((a, b) => a.displayOrder - b.displayOrder);
+  const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
+
+  const resetForm = () => { setTitle(''); setSubtitle(''); setBadge(''); setImageUrl(''); setUploadError(null); setEditingId(null); setShowAdd(false); };
+
+  const pickImage = async (file: File) => {
+    setUploading(true); setUploadError(null);
+    try {
+      const result = await uploadMediaFile(file, 'gallery_courses');
+      if (result.url) setImageUrl(result.url);
+      else if (result.error) setUploadError(result.error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const startEdit = (course: GalleryCourse) => {
+    setEditingId(course.id); setTitle(course.title); setSubtitle(course.subtitle);
+    setBadge(course.badge || ''); setImageUrl(course.imageUrl); setShowAdd(true);
+  };
+
+  const saveCourse = () => {
+    if (!title.trim() || !imageUrl) return;
+    if (editingId !== null) {
+      setCourses(prev => prev.map(c => c.id === editingId
+        ? { ...c, title: title.trim(), subtitle: subtitle.trim(), badge: badge.trim() || undefined, imageUrl }
+        : c));
+    } else {
+      setCourses(prev => [...prev, {
+        id: genId(), title: title.trim(), subtitle: subtitle.trim(), badge: badge.trim() || undefined,
+        imageUrl, displayOrder: active.length + 1, isDeleted: false,
+      }]);
+    }
+    resetForm();
+  };
+
+  const removeCourse = (id: number) => setCourses(prev => prev.map(c => c.id === id ? { ...c, isDeleted: true } : c));
+
+  const move = (id: number, dir: -1 | 1) => {
+    const idx = active.findIndex(c => c.id === id);
+    const swapIdx = idx + dir;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= active.length) return;
+    const a = active[idx], b = active[swapIdx];
+    setCourses(prev => prev.map(c => {
+      if (c.id === a.id) return { ...c, displayOrder: b.displayOrder };
+      if (c.id === b.id) return { ...c, displayOrder: a.displayOrder };
+      return c;
+    }));
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-xl font-bold text-white">مكتبة المواد الدراسية</h2>
+        <span className="text-sm text-white/40">{active.length} كورس</span>
+      </div>
+      <p className="text-xs text-white/40 mb-5">
+        الكروت اللي بتظهر في معرض "مكتبة المواد الدراسية" بالصفحة الرئيسية. أي إضافة أو تعديل أو حذف هنا بيتزامن تلقائيًا لكل المستخدمين بمجرد الحفظ.
+      </p>
+
+      {!showAdd && (
+        <button onClick={() => setShowAdd(true)}
+          className="w-full mb-5 py-3 rounded-2xl flex items-center justify-center gap-2 text-sm font-medium text-white"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.15)' }}>
+          <Plus size={15} /> إضافة كورس جديد
+        </button>
+      )}
+
+      {showAdd && (
+        <div className="rounded-2xl p-4 mb-5 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white">{editingId !== null ? 'تعديل الكورس' : 'كورس جديد'}</h3>
+            <button onClick={resetForm} className="p-1 rounded-lg hover:bg-white/10"><X size={14} className="text-white/50" /></button>
+          </div>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="عنوان الكورس (مثال: رياضيات متقدمة)"
+            className="w-full px-3 py-2.5 rounded-xl text-white placeholder-white/30 outline-none text-sm" style={inp} />
+          <input type="text" value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="الوصف الفرعي (مثال: المستوى الثالث · 24 درس)"
+            className="w-full px-3 py-2.5 rounded-xl text-white placeholder-white/30 outline-none text-sm" style={inp} />
+          <input type="text" value={badge} onChange={e => setBadge(e.target.value)} placeholder="شارة اختيارية (مثال: جديد / مميز / شعبي)"
+            className="w-full px-3 py-2.5 rounded-xl text-white placeholder-white/30 outline-none text-sm" style={inp} />
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              {imageUrl ? <img src={imageUrl} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={18} className="text-white/25" />}
+            </div>
+            <label className="px-4 py-2.5 rounded-xl bg-white/10 text-white text-sm font-medium flex items-center gap-2 cursor-pointer hover:bg-white/20 transition-colors">
+              {uploading ? <><Loader2 size={14} className="animate-spin" /> جاري الرفع...</> : <><UploadCloud size={14} /> رفع صورة الكورس</>}
+              <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                onChange={e => { const f = e.target.files?.[0]; if (f) pickImage(f); e.target.value = ''; }} />
+            </label>
+          </div>
+          {uploadError && <p className="text-xs text-red-400">فشل رفع الصورة: {uploadError}</p>}
+          <button onClick={saveCourse} disabled={!title.trim() || !imageUrl}
+            className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+            style={{ background: (!title.trim() || !imageUrl) ? 'rgba(255,255,255,0.1)' : 'white', color: (!title.trim() || !imageUrl) ? 'rgba(255,255,255,0.3)' : '#0a0a1a' }}>
+            <Save size={14} /> {editingId !== null ? 'حفظ التعديل' : 'إضافة الكورس'}
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <AnimatePresence>
+          {active.map((course, i) => (
+            <motion.div key={course.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }}
+              className="rounded-2xl p-3 flex items-center gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <img src={course.imageUrl} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-medium text-sm truncate">{course.title} {course.badge && <span className="text-[10px] px-1.5 py-0.5 rounded-md ml-1" style={{ background: 'rgba(249,115,22,0.15)', color: '#f97316' }}>{course.badge}</span>}</p>
+                <p className="text-white/40 text-xs truncate">{course.subtitle}</p>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => move(course.id, -1)} disabled={i === 0} className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-20"><ArrowUp size={14} className="text-white/50" /></button>
+                <button onClick={() => move(course.id, 1)} disabled={i === active.length - 1} className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-20"><ArrowDown size={14} className="text-white/50" /></button>
+                <button onClick={() => startEdit(course)} className="p-1.5 rounded-lg hover:bg-white/10"><Edit3 size={14} className="text-white/50" /></button>
+                <button onClick={() => removeCourse(course.id)} className="p-1.5 rounded-lg hover:bg-white/10"><Trash2 size={14} className="text-red-400" /></button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        {active.length === 0 && (
+          <p className="text-center text-white/30 text-sm py-8">لسه مفيش كورسات — دوس "إضافة كورس جديد" لتبدأ.</p>
+        )}
       </div>
     </div>
   );
@@ -1074,8 +1245,8 @@ function TrashTab({ sections, setSections, content, setContent, records, setReco
 }
 
 /* ─── Settings Tab ─── */
-function SettingsTab({ appName, setAppName, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange, onSaveNow, saveStatus, saveWasCloud, saveErrorMessage, getCurrentDataSnapshot }: {
-  appName: string; setAppName: (v: string) => void; themeColors: string[]; setThemeColors: (v: string[]) => void;
+function SettingsTab({ appName, setAppName, appIconUrl, setAppIconUrl, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange, onSaveNow, saveStatus, saveWasCloud, saveErrorMessage, getCurrentDataSnapshot }: {
+  appName: string; setAppName: (v: string) => void; appIconUrl: string; setAppIconUrl: (v: string) => void; themeColors: string[]; setThemeColors: (v: string[]) => void;
   maintenanceMode: boolean; setMaintenanceMode: (v: boolean) => void; rgbLighting: boolean; setRgbLighting: (v: boolean) => void;
   notifications: boolean; setNotifications: (v: boolean) => void; downloadFeatureEnabled: boolean; setDownloadFeatureEnabled: (v: boolean) => void;
   onPasswordChange?: (pw: string) => void;
@@ -1085,6 +1256,18 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
   getCurrentDataSnapshot: () => unknown;
 }) {
   const [newPassword, setNewPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState('');
+  const [iconUploading, setIconUploading] = useState(false);
+  const [iconUploadError, setIconUploadError] = useState<string | null>(null);
+  const pickAppIcon = async (file: File) => {
+    setIconUploading(true); setIconUploadError(null);
+    try {
+      const result = await uploadMediaFile(file, 'branding');
+      if (result.url) setAppIconUrl(result.url);
+      else if (result.error) setIconUploadError(result.error);
+    } finally {
+      setIconUploading(false);
+    }
+  };
   const [authCode, setAuthCode] = useState(''); const [showPw, setShowPw] = useState(false);
   const [pwSuccess, setPwSuccess] = useState(false); const [pwError, setPwError] = useState('');
   const [cacheCleared, setCacheCleared] = useState(false);
@@ -1149,6 +1332,31 @@ function SettingsTab({ appName, setAppName, themeColors, setThemeColors, mainten
         <div className="flex gap-2">
           <input type="text" value={appName} onChange={e => setAppName(e.target.value)} className="flex-1 px-3 py-2.5 rounded-xl text-white outline-none text-sm" style={inp} />
           <button className="px-4 py-2.5 rounded-xl bg-white text-gray-900 font-bold text-sm flex items-center gap-1"><Save size={13} /> حفظ</button>
+        </div>
+      </div>
+      {/* App icon / branding — داخل الموقع بس، راجع التنويه أسفل الصندوق */}
+      <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center gap-2 mb-3"><ImageIcon size={16} className="text-white/60" /><h3 className="text-base font-bold text-white">أيقونة التطبيق (شعار الموقع)</h3></div>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            {appIconUrl ? <img src={appIconUrl} alt="أيقونة التطبيق" className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-white/25" />}
+          </div>
+          <label className="px-4 py-2.5 rounded-xl bg-white/10 text-white text-sm font-medium flex items-center gap-2 cursor-pointer hover:bg-white/20 transition-colors">
+            {iconUploading ? <><Loader2 size={14} className="animate-spin" /> جاري الرفع...</> : <><UploadCloud size={14} /> رفع أيقونة جديدة</>}
+            <input type="file" accept="image/*" className="hidden" disabled={iconUploading}
+              onChange={e => { const f = e.target.files?.[0]; if (f) pickAppIcon(f); e.target.value = ''; }} />
+          </label>
+          {appIconUrl && (
+            <button onClick={() => setAppIconUrl('')} className="p-2.5 rounded-xl hover:bg-white/10 text-white/40" title="إزالة الأيقونة"><X size={16} /></button>
+          )}
+        </div>
+        {iconUploadError && <p className="text-xs text-red-400 mb-2">فشل رفع الأيقونة: {iconUploadError}</p>}
+        <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.25)' }}>
+          <AlertCircle size={14} className="text-orange-400 flex-shrink-0 mt-0.5" />
+          <p className="text-[11px] leading-relaxed text-white/60">
+            الاسم والأيقونة هنا بيتزامنوا فورًا لكل المستخدمين <b className="text-white/80">جوه الموقع/التطبيق نفسه</b> (الهيدر، تبويب المتصفح، وأيقونة الإضافة للشاشة الرئيسية عند أي تثبيت PWA جديد).
+            لكن <b className="text-white/80">أيقونة التطبيق واسمه الظاهرين تحت أيقونته على الشاشة الرئيسية للهاتف</b> (زي "EduVerse" اللي شايفها تحت أيقونة التطبيق المثبّت فعلاً) بيتم تجميعهم داخل حزمة التطبيق نفسها (APK/AAB) وقت البناء — مفيش أي إعداد من جوه التطبيق يقدر يغيّرهم على أجهزة المستخدمين اللي مثبّتين التطبيق أصلاً؛ التغيير ده بيحتاج تعديل ملفات الأيقونة والاسم في مشروع Android ثم بناء ونشر تحديث حقيقي للتطبيق (عبر متجر التطبيقات أو حزمة APK جديدة) عشان يوصل لكل المستخدمين. لو جاهز تعمل التحديث ده، ابعتلي وهقولّك بالظبط الملفات اللي تتغيّر.
+          </p>
         </div>
       </div>
       {/* Colors */}
@@ -1268,6 +1476,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
 
   const [data] = useState<AdminData>(() => loadData());
   const [appName, setAppName] = useState(data.appName);
+  const [appIconUrl, setAppIconUrl] = useState(data.appIconUrl || '');
   const [themeColors, setThemeColors] = useState(data.themeColors);
   const [maintenanceMode, setMaintenanceMode] = useState(data.maintenanceMode);
   const [rgbLighting, setRgbLighting] = useState(data.rgbLighting);
@@ -1277,10 +1486,11 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
   const [contentItems, setContentItems] = useState<ContentItem[]>(data.contentItems);
   const [records, setRecords] = useState<RecordItem[]>(data.records);
   const [files, setFiles] = useState<FileItem[]>(data.files);
+  const [courses, setCourses] = useState<GalleryCourse[]>(data.courses && data.courses.length ? data.courses : DEFAULT_GALLERY_COURSES);
 
   useEffect(() => {
-    saveData({ appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files });
-  }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files]);
+    saveData({ appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses });
+  }, [appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses]);
 
   // زرار "حفظ الآن" في الإعدادات — بيجمع أحدث نسخة من كل حاجة (أقسام،
   // محتوى، ملفات، تسجيلات، إعدادات) ويحفظها فورًا (محلي + Supabase لو
@@ -1292,14 +1502,14 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
     setSaveStatus('saving');
     setSaveErrorMessage(null);
     const result = await saveDataNow({
-      appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled,
-      sections, contentItems, records, files,
+      appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled,
+      sections, contentItems, records, files, courses,
     });
     setSaveWasCloud(result.cloud);
     setSaveStatus(result.ok ? 'saved' : 'error');
     if (!result.ok) setSaveErrorMessage(result.message || 'خطأ غير معروف');
     setTimeout(() => setSaveStatus('idle'), result.ok ? 3500 : 8000);
-  }, [appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files]);
+  }, [appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses]);
 
   // عند فتح لوحة الإدارة أول مرة على أي جهاز، نسحب أحدث نسخة حقيقية من
   // Supabase ونستبدل بيها القيم المحلية (اللي ممكن تكون بيانات تجريبية
@@ -1312,6 +1522,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
       if (cancelled || !remote) return;
       const merged: AdminData = { ...DEFAULT_DATA, ...(remote as unknown as Partial<AdminData>) };
       setAppName(merged.appName);
+      setAppIconUrl(merged.appIconUrl || '');
       setThemeColors(merged.themeColors);
       setMaintenanceMode(merged.maintenanceMode);
       setRgbLighting(merged.rgbLighting);
@@ -1321,6 +1532,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
       setContentItems(stripKnownDemoSeed(merged.contentItems));
       setRecords(merged.records);
       setFiles(merged.files);
+      setCourses(merged.courses && merged.courses.length ? merged.courses : DEFAULT_GALLERY_COURSES);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1331,6 +1543,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'الرئيسية', icon: <Home size={15} /> },
     { id: 'sections', label: 'الأقسام', icon: <BookOpen size={15} /> },
+    { id: 'gallery', label: 'مكتبة المواد الدراسية', icon: <GraduationCap size={15} /> },
     { id: 'content', label: 'المحتوى', icon: <ImageIcon size={15} /> },
     { id: 'record', label: 'صوتي', icon: <Mic size={15} /> },
     { id: 'files', label: 'الملفات', icon: <File size={15} /> },
@@ -1427,6 +1640,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             )}
 
             {activeTab === 'sections' && <SectionsTab sections={sections} setSections={setSections} />}
+            {activeTab === 'gallery' && <GalleryTab courses={courses} setCourses={setCourses} />}
             {activeTab === 'content' && <ContentTab content={contentItems} setContent={setContentItems} sections={sections} downloadFeatureEnabled={downloadFeatureEnabled} onMediaView={onMediaView} />}
             {activeTab === 'record' && <RecordTab records={records} setRecords={setRecords} sections={sections} onMediaView={onMediaView} />}
             {activeTab === 'files' && <FilesTab files={files} setFiles={setFiles} sections={sections} onMediaView={onMediaView} />}
@@ -1434,7 +1648,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             {activeTab === 'analytics' && <AnalyticsTab content={contentItems} records={records} files={files} />}
             {activeTab === 'trash' && <TrashTab sections={sections} setSections={setSections} content={contentItems} setContent={setContentItems} records={records} setRecords={setRecords} files={files} setFiles={setFiles} />}
             {activeTab === 'display' && <DisplayScreen />}
-            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} getCurrentDataSnapshot={() => ({ appName, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files })} />}
+            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} appIconUrl={appIconUrl} setAppIconUrl={setAppIconUrl} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} getCurrentDataSnapshot={() => ({ appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses })} />}
 
           </motion.div>
         </AnimatePresence>
