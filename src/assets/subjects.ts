@@ -17,4 +17,6 @@ export const SUBJECT_IMAGES = {
   // ضيف عنصر جديد في HeroCarousel.tsx بنفس شكل الأسطر التانية.
   computer_science: '/assets/subjects/computer-science-book-3d.webp',
   courses:          '/assets/subjects/courses-book-3d.webp',
+  // نسخة فلسفة بالفرنساوي (PHILOSOPHIE) — مضافة كمادة سابعة في الكاروسيل.
+  philosophy_fr: '/assets/subjects/philosophy-fr-book-3d.webp',
 };
