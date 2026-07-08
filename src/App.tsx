@@ -332,11 +332,11 @@ function AppContent() {
       </AnimatePresence>
 
       {/* Top Navigation Bar */}
-      <nav style={{
+      <nav className={navScrolled ? 'glass-premium' : ''} style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
         padding: navScrolled ? '10px 0' : '18px 0',
-        background: navScrolled ? 'rgba(10,10,15,0.92)' : 'transparent',
-        backdropFilter: navScrolled ? 'blur(20px)' : 'none',
+        background: navScrolled ? undefined : 'transparent',
+        borderRadius: 0, borderInline: 'none', borderTop: 'none',
         transition: 'all 300ms ease',
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -414,7 +414,7 @@ function AppContent() {
 
         {/* Footer */}
         <footer style={{ background: '#050510', padding: '60px 20px 40px' }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div className="reveal" style={{ maxWidth: '1200px', margin: '0 auto' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '32px', marginBottom: '48px' }}>
               <div>
                 <span style={{ fontFamily: "'Anton', sans-serif", fontSize: '22px', color: 'white' }}>EDUVERSE</span>
