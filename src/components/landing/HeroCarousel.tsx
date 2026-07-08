@@ -3,11 +3,19 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { SUBJECT_IMAGES } from '../../assets/subjects';
 
 const IMAGES = [
-  { src: SUBJECT_IMAGES.math,     bg: '#F4845F', label: 'Mathematics',  labelAr: 'الرياضيات' },
-  { src: SUBJECT_IMAGES.science,  bg: '#6BBF7A', label: 'Science',       labelAr: 'العلوم' },
-  { src: SUBJECT_IMAGES.language, bg: '#E882B4', label: 'Language',      labelAr: 'اللغة العربية' },
-  { src: SUBJECT_IMAGES.art,      bg: '#6EB5FF', label: 'Art & Design',  labelAr: 'الفنون' },
+  { src: SUBJECT_IMAGES.math,              bg: '#F4845F', label: 'Mathematics',       labelAr: 'الرياضيات' },
+  { src: SUBJECT_IMAGES.science,           bg: '#6BBF7A', label: 'Science',            labelAr: 'العلوم' },
+  { src: SUBJECT_IMAGES.language,          bg: '#E882B4', label: 'Language',           labelAr: 'اللغة العربية' },
+  { src: SUBJECT_IMAGES.art,               bg: '#6EB5FF', label: 'Art & Design',       labelAr: 'الفنون' },
+  { src: SUBJECT_IMAGES.english,           bg: '#C48F3C', label: 'English',            labelAr: 'اللغة الإنجليزية' },
+  { src: SUBJECT_IMAGES.french,            bg: '#5B7FDB', label: 'French',             labelAr: 'اللغة الفرنسية' },
+  { src: SUBJECT_IMAGES.psychology,        bg: '#9B6FD1', label: 'Psychology',         labelAr: 'علم النفس' },
+  { src: SUBJECT_IMAGES.philosophy,        bg: '#4FA6A0', label: 'Philosophy',         labelAr: 'الفلسفة' },
+  { src: SUBJECT_IMAGES.computer_science,  bg: '#3D8FBF', label: 'Computer Science',   labelAr: 'علوم الحاسب' },
+  { src: SUBJECT_IMAGES.courses,           bg: '#D9635A', label: 'All Courses',        labelAr: 'كل الدورات' },
 ];
+
+const TOTAL = IMAGES.length;
 
 // Preload images on mount
 const preloadImages = () => {
@@ -54,7 +62,7 @@ export default function HeroCarousel() {
       if (isAnimating) return;
       setIsAnimating(true);
       setActiveIndex((prev) =>
-        direction === 'next' ? (prev + 1) % 4 : (prev + 3) % 4
+        direction === 'next' ? (prev + 1) % TOTAL : (prev + TOTAL - 1) % TOTAL
       );
       setTimeout(() => setIsAnimating(false), 500);
     },
@@ -94,7 +102,7 @@ export default function HeroCarousel() {
       {/* Subject counter */}
       <div style={{ position: 'absolute', top: isMobile ? '76px' : '88px', insetInlineEnd: isMobile ? '16px' : '32px', zIndex: 55 }}>
         <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'white', opacity: 0.75, letterSpacing: '0.14em' }}>
-          {`${activeIndex + 1} / 4 — ${IMAGES[activeIndex].label}`}
+          {`${activeIndex + 1} / ${TOTAL} — ${IMAGES[activeIndex].label}`}
         </span>
       </div>
 
