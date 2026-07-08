@@ -72,11 +72,19 @@ interface RawRecordItem {
   id: number; title: string; audioUrl: string; sectionId: number;
   showOnHome: boolean; isDeleted: boolean;
 }
+/** عنصر واحد في "مكتبة المواد الدراسية" — معرض الكورسات في الصفحة الرئيسية. */
+export interface RawGalleryCourse {
+  id: number; title: string; subtitle: string; badge?: string;
+  imageUrl: string; displayOrder: number; isDeleted: boolean;
+}
 interface RawAdminData {
   sections?: RawSection[];
   contentItems?: RawContentItem[];
   files?: RawFileItem[];
   records?: RawRecordItem[];
+  courses?: RawGalleryCourse[];
+  appName?: string;
+  appIconUrl?: string;
 }
 
 function readAdminData(): RawAdminData | null {
@@ -458,4 +466,25 @@ export function getBridgedContent(): ContentRow[] {
   }
 
   return rows.sort((a, b) => b.id - a.id);
+}
+
+/**
+ * يرجّع عناصر "مكتبة المواد الدراسية" (معرض الكورسات في الصفحة الرئيسية)
+ * بنفس الشكل اللي بيفهمه CircularGallery (GalleryItem)، بعد استبعاد
+ * المحذوف وترتيبها حسب displayOrder. لو الأدمن لسه ما ضافش أي كورس على
+ * الإطلاق، بترجع مصفوفة فاضية — والـ hook اللي بيستخدمها (useGalleryCourses)
+ * هو اللي بيقرر يرجع للكورسات التجريبية الثابتة بدل كده.
+ */
+export function getBridgedCourses(): RawGalleryCourse[] {
+  const data = readAdminData();
+  if (!data?.courses) return [];
+  return data.courses
+    .filter((c) => !c.isDeleted)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+}
+
+/** يرجّع اسم التطبيق وأيقونته الخارجية كما ضبطهما الأدمن من الإعدادات (لو موجودين). */
+export function getBridgedBranding(): { appName?: string; appIconUrl?: string } {
+  const data = readAdminData();
+  return { appName: data?.appName, appIconUrl: data?.appIconUrl };
 }
