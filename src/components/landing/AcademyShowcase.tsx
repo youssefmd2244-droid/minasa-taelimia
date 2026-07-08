@@ -58,7 +58,7 @@ function AcademyHero() {
           onMouseEnter={() => setHoverCTA(true)}
           onMouseLeave={() => setHoverCTA(false)}
           onClick={() => {}}
-          className="liquid-glass"
+          className="liquid-glass glass-premium"
           style={{
             display: 'flex',
             alignItems: 'center',
