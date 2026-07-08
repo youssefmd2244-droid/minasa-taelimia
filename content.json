@@ -1,0 +1,269 @@
+{
+  "appName": "EduVerse",
+  "appIconUrl": "",
+  "themeColors": [
+    "#F4845F",
+    "#6BBF7A",
+    "#E882B4",
+    "#6EB5FF"
+  ],
+  "maintenanceMode": false,
+  "rgbLighting": true,
+  "notifications": true,
+  "downloadFeatureEnabled": false,
+  "sections": [
+    {
+      "id": 1,
+      "title": "المستوى الأول — رياضيات",
+      "isDeleted": false,
+      "isVisible": true,
+      "displayOrder": 1
+    },
+    {
+      "id": 2,
+      "title": "المستوى الثاني — علوم",
+      "isDeleted": false,
+      "isVisible": true,
+      "displayOrder": 2
+    },
+    {
+      "id": 3,
+      "title": "المستوى الأول — لغة عربية",
+      "isDeleted": false,
+      "isVisible": true,
+      "displayOrder": 3
+    },
+    {
+      "id": 4,
+      "title": "المستوى الثاني — فنون",
+      "isDeleted": false,
+      "isVisible": true,
+      "displayOrder": 4
+    }
+  ],
+  "contentItems": [
+    {
+      "id": 1783268899179001,
+      "type": "image",
+      "title": "1000584281.jpg",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783268896249_1000584281.jpg",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783268899179002,
+      "type": "image",
+      "title": "1000584261.jpg",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783268896249_1000584261.jpg",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783268899179003,
+      "type": "image",
+      "title": "1000584213.jpg",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783268896249_1000584213.jpg",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783268934369004,
+      "type": "video",
+      "title": "1000581647.mp4",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783268916099_1000581647.mp4",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": true,
+      "showOnHome": false,
+      "attachments": [
+        {
+          "url": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/misc/1783268928881_Screenshot__-_-_-_-_-_-__com.android.chrome.jpg",
+          "name": "Screenshot_٢٠٢٦-٠٧-٠٥-١٩-١٨-٤٢-٩٠٠_com.android.chrome.jpg",
+          "type": "image"
+        }
+      ],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783268959563005,
+      "type": "image",
+      "title": "1000584298.jpg",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783268958298_1000584298.jpg",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": true,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783268962669006,
+      "type": "image",
+      "title": "1000584297.jpg",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783268958297_1000584297.jpg",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783277472612001,
+      "type": "video",
+      "title": "1000581779.mp4",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783277463098_1000581779.mp4",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783278629179001,
+      "type": "video",
+      "title": "1000576366.mp4",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783278615091_1000576366.mp4",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783278763500002,
+      "type": "video",
+      "title": "1000575362.mp4",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783278734464_1000575362.mp4",
+      "isDeleted": false,
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783280696679001,
+      "type": "video",
+      "title": "1000576028.mp4",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783280485299_1000576028.mp4",
+      "isDeleted": false,
+      "posterUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content_posters/1783280647909_1000576021.png",
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    },
+    {
+      "id": 1783287389474001,
+      "type": "video",
+      "title": "1000581647.mp4",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783287337689_1000581647.mp4",
+      "isDeleted": false,
+      "posterUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content_posters/1783287378576_1000576166.png",
+      "sectionId": 1,
+      "isFeatured": false,
+      "showOnHome": false,
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
+    }
+  ],
+  "records": [],
+  "files": [],
+  "courses": [
+    {
+      "id": 1,
+      "badge": "جديد",
+      "title": "رياضيات متقدمة",
+      "imageUrl": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&auto=format&fit=crop&q=80",
+      "subtitle": "المستوى الثالث · 24 درس",
+      "isDeleted": false,
+      "displayOrder": 1
+    },
+    {
+      "id": 2,
+      "title": "الفيزياء والميكانيكا",
+      "imageUrl": "https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=600&auto=format&fit=crop&q=80",
+      "subtitle": "المستوى الثاني · 18 درس",
+      "isDeleted": false,
+      "displayOrder": 2
+    },
+    {
+      "id": 3,
+      "badge": "مميز",
+      "title": "كورسات",
+      "imageUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/gallery_courses/1783482493724_1000591325.png",
+      "subtitle": "المستوى الأول · 15 درس",
+      "isDeleted": false,
+      "displayOrder": 3
+    },
+    {
+      "id": 4,
+      "title": "اللغة العربية",
+      "imageUrl": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=600&auto=format&fit=crop&q=80",
+      "subtitle": "جميع المستويات · 30 درس",
+      "isDeleted": false,
+      "displayOrder": 4
+    },
+    {
+      "id": 5,
+      "badge": "شعبي",
+      "title": "علوم الحاسب",
+      "imageUrl": "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=600&auto=format&fit=crop&q=80",
+      "subtitle": "المستوى الأول · 22 درس",
+      "isDeleted": false,
+      "displayOrder": 5
+    },
+    {
+      "id": 6,
+      "title": "الأحياء والبيولوجيا",
+      "imageUrl": "https://images.unsplash.com/photo-1576086213369-97a306d36557?w=600&auto=format&fit=crop&q=80",
+      "subtitle": "المستوى الثاني · 20 درس",
+      "isDeleted": false,
+      "displayOrder": 6
+    },
+    {
+      "id": 7,
+      "title": "الجغرافيا والتاريخ",
+      "imageUrl": "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&auto=format&fit=crop&q=80",
+      "subtitle": "المستوى الأول · 12 درس",
+      "isDeleted": false,
+      "displayOrder": 7
+    },
+    {
+      "id": 8,
+      "badge": "جديد",
+      "title": "اللغة الإنجليزية",
+      "imageUrl": "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&auto=format&fit=crop&q=80",
+      "subtitle": "جميع المستويات · 28 درس",
+      "isDeleted": false,
+      "displayOrder": 8
+    }
+  ]
+}
