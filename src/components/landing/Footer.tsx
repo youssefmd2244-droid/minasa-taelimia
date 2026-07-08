@@ -26,7 +26,7 @@ export default function Footer({ onOpenAdmin }: FooterProps) {
 
       {/* Main Footer */}
       <div style={{ padding: '64px 40px 40px', maxWidth: '1200px', margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '48px', marginBottom: '48px' }}>
+        <div className="reveal" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '48px', marginBottom: '48px' }}>
           {/* Brand */}
           <div>
             <div style={{ fontFamily: "'Anton', sans-serif", fontSize: '28px', color: 'white', letterSpacing: '0.04em', marginBottom: '16px' }}>EDUVERSE</div>
