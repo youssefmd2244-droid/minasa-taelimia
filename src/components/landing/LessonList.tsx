@@ -27,6 +27,7 @@ import { useContent } from '../../hooks/useContent';
 import type { ContentType } from '../../lib/supabaseClient';
 import ZoomableImage from '../ui/ZoomableImage';
 import VideoPlayer from '../ui/VideoPlayer';
+import { useTilt3D } from '../../hooks/useTilt3D';
 
 const TYPE_META: Record<ContentType, { icon: typeof FileText; color: string; label: string }> = {
   video: { icon: Video, color: '#6EB5FF', label: 'فيديو' },
@@ -76,105 +77,134 @@ export default function LessonList({ sectionId, limit, onlyShowOnHome }: LessonL
   if (visible.length === 0) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {visible.map((item, index) => {
-        const meta = TYPE_META[item.type];
-        const Icon = meta.icon;
-        const hasMediaPreview = (item.type === 'image' || item.type === 'video') && !!item.file_url;
-        return (
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-60px' }}
-            transition={{ duration: 0.5, delay: index * 0.06, ease: [0.16, 1, 0.3, 1] }}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {visible.map((item, index) => (
+        <LessonCard
+          key={item.id}
+          item={item}
+          index={index}
+          downloadingId={downloadingId}
+          onDownload={handleDownload}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface LessonCardProps {
+  item: ReturnType<typeof useContent>['items'][number];
+  index: number;
+  downloadingId: number | null;
+  onDownload: (itemId: number, fileUrl: string | null) => void;
+}
+
+/* كارت زجاجي حقيقي (glass-premium) بيميل مع اللمس/الماوس (tilt-3d)،
+   بدل الكارت المسطح اللي كان موجود قبل كده. */
+function LessonCard({ item, index, downloadingId, onDownload }: LessonCardProps) {
+  const tilt = useTilt3D<HTMLDivElement>(6);
+  const meta = TYPE_META[item.type];
+  const Icon = meta.icon;
+  const hasMediaPreview = (item.type === 'image' || item.type === 'video') && !!item.file_url;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.5, delay: index * 0.06, ease: [0.16, 1, 0.3, 1] }}
+      style={{ position: 'relative' }}
+    >
+      <div className="glass-glow" style={{ background: meta.color }} aria-hidden />
+      <div
+        ref={tilt.ref}
+        onMouseMove={tilt.onMouseMove}
+        onMouseLeave={tilt.onMouseLeave}
+        onTouchMove={tilt.onTouchMove}
+        onTouchEnd={tilt.onTouchEnd}
+        className="tilt-3d glass-premium"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: hasMediaPreview ? '10px' : 0,
+          padding: '16px 18px',
+          borderRadius: '16px',
+        }}
+      >
+        {/* معاينة حقيقية للصورة/الفيديو — ده اللي كان ناقص وبيخلي أي
+            صورة أو فيديو يضيفه الأدمن يظهر فعلياً هنا مش مجرد أيقونة */}
+        {hasMediaPreview && (
+          <div style={{ borderRadius: '10px', overflow: 'hidden', background: '#000' }}>
+            {item.type === 'image' ? (
+              <ZoomableImage
+                src={item.file_url as string}
+                alt={item.title}
+                style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', display: 'block' }}
+              />
+            ) : (
+              <VideoPlayer src={item.file_url as string} poster={item.poster_url || undefined} maxHeight="260px" borderRadius="10px" />
+            )}
+          </div>
+        )}
+        {item.type === 'audio' && item.file_url && (
+          <audio src={item.file_url} controls style={{ width: '100%' }} />
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div
             style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: `${meta.color}22`,
               display: 'flex',
-              flexDirection: 'column',
-              gap: hasMediaPreview ? '10px' : 0,
-              padding: '16px 18px',
-              borderRadius: '14px',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
             }}
           >
-            {/* معاينة حقيقية للصورة/الفيديو — ده اللي كان ناقص وبيخلي أي
-                صورة أو فيديو يضيفه الأدمن يظهر فعلياً هنا مش مجرد أيقونة */}
-            {hasMediaPreview && (
-              <div style={{ borderRadius: '10px', overflow: 'hidden', background: '#000' }}>
-                {item.type === 'image' ? (
-                  <ZoomableImage
-                    src={item.file_url as string}
-                    alt={item.title}
-                    style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', display: 'block' }}
-                  />
-                ) : (
-                  <VideoPlayer src={item.file_url as string} poster={item.poster_url || undefined} maxHeight="260px" borderRadius="10px" />
-                )}
-              </div>
-            )}
-            {item.type === 'audio' && item.file_url && (
-              <audio src={item.file_url} controls style={{ width: '100%' }} />
-            )}
+            <Icon size={18} color={meta.color} />
+          </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: 'white', unicodeBidi: 'plaintext' }}>{item.title}</span>
+              {item.is_featured && <Star size={13} fill="#f97316" color="#f97316" />}
+            </div>
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{meta.label}</span>
+          </div>
+
+          {/*
+            القاعدة الصارمة: هذا الزر غير موجود في DOM أصلاً لأي عنصر
+            لا يحمل allow_download === true — وليس مجرد مخفي بصرياً.
+          */}
+          {item.allow_download && (
+            <button
+              onClick={() => onDownload(item.id, item.file_url)}
+              disabled={downloadingId === item.id}
+              title="تنزيل"
               style={{
-                width: '40px',
-                height: '40px',
+                width: '36px',
+                height: '36px',
                 borderRadius: '10px',
-                background: `${meta.color}22`,
+                border: 'none',
+                background: 'rgba(96,165,250,0.15)',
+                color: '#60a5fa',
+                cursor: downloadingId === item.id ? 'wait' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
+                opacity: downloadingId === item.id ? 0.6 : 1,
+                transition: 'opacity 200ms ease, transform 200ms ease',
               }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
             >
-              <Icon size={18} color={meta.color} />
-            </div>
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 600, color: 'white', unicodeBidi: 'plaintext' }}>{item.title}</span>
-                {item.is_featured && <Star size={13} fill="#f97316" color="#f97316" />}
-              </div>
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{meta.label}</span>
-            </div>
-
-            {/*
-              القاعدة الصارمة: هذا الزر غير موجود في DOM أصلاً لأي عنصر
-              لا يحمل allow_download === true — وليس مجرد مخفي بصرياً.
-            */}
-            {item.allow_download && (
-              <button
-                onClick={() => handleDownload(item.id, item.file_url)}
-                disabled={downloadingId === item.id}
-                title="تنزيل"
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: 'rgba(96,165,250,0.15)',
-                  color: '#60a5fa',
-                  cursor: downloadingId === item.id ? 'wait' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  opacity: downloadingId === item.id ? 0.6 : 1,
-                  transition: 'opacity 200ms ease, transform 200ms ease',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
-              >
-                <Download size={16} />
-              </button>
-            )}
-            </div>
-          </motion.div>
-        );
-      })}
-    </div>
+              <Download size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 }
