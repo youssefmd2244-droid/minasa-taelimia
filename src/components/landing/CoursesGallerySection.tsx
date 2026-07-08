@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion';
-import { CircularGallery, EDUCATIONAL_COURSES } from '../ui/circular-gallery';
+import { CircularGallery } from '../ui/circular-gallery';
+import { useGalleryCourses } from '../../hooks/useGalleryCourses';
 
 export default function CoursesGallerySection() {
+  const courses = useGalleryCourses();
   return (
     // NOTE: intentionally NOT position:sticky / pinned-scroll — that pattern
     // was making the page feel "stuck" and unresponsive to touch scrolling
@@ -27,7 +29,7 @@ export default function CoursesGallerySection() {
       {/* Gallery */}
       <div className="w-full" style={{ height: '360px' }}>
         <CircularGallery
-          items={EDUCATIONAL_COURSES}
+          items={courses}
           radius={320}
           autoRotateSpeed={0.012}
         />
