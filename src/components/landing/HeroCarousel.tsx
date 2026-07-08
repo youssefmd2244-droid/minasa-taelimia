@@ -13,6 +13,7 @@ const IMAGES = [
   { src: SUBJECT_IMAGES.philosophy,        bg: '#4FA6A0', label: 'Philosophy',         labelAr: 'الفلسفة' },
   { src: SUBJECT_IMAGES.computer_science,  bg: '#3D8FBF', label: 'Computer Science',   labelAr: 'علوم الحاسب' },
   { src: SUBJECT_IMAGES.courses,           bg: '#D9635A', label: 'All Courses',        labelAr: 'كل الدورات' },
+  { src: SUBJECT_IMAGES.philosophy_fr,     bg: '#2E2E2E', label: 'Philosophie',        labelAr: 'الفلسفة (فرنساوي)' },
 ];
 
 const TOTAL = IMAGES.length;
