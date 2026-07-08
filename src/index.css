@@ -51,8 +51,13 @@ body {
 }
 
 /* ===== Glass effects ===== */
-.liquid-glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
-.liquid-glass-strong { background: rgba(255,255,255,0.1); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid rgba(255,255,255,0.15); }
+.liquid-glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+.liquid-glass-strong { background: rgba(255,255,255,0.1); backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); border: 1px solid rgba(255,255,255,0.15); }
+/* أجهزة ضعيفة/متصفحات مش داعمة blur خالص: نسيب اللون شبه الشفاف بس من غيره،
+   عشان يفضل واضح ومقروء بدل خلفية غير متناسقة. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .liquid-glass, .liquid-glass-strong { background: rgba(14,14,26,0.82); }
+}
 
 /* ===== Animations ===== */
 @keyframes fadeRise { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
@@ -115,6 +120,19 @@ body {
 }
 .reveal-3d-right.visible { opacity: 1; transform: perspective(900px) translateX(0) rotateY(0deg) scale(1); }
 
+/* شبكة أمان: لو المستخدم مفعّل "تقليل الحركة" من إعدادات جهازه، أو حصل أي
+   مشكلة في المراقبة (IntersectionObserver)، العناصر لازم تفضل ظاهرة عادي
+   بدل ما تفضل مختفية (opacity:0) للأبد. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal-left, .reveal-3d, .reveal-3d-left, .reveal-3d-right,
+  .fade-rise {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 /* ===== Circular Gallery 3D scene ===== */
 .gallery-3d-scene {
   perspective: 1600px;
@@ -175,6 +193,8 @@ body {
 /* Cards inside admin */
 .admin-card {
   background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
   transition: border-color 200ms ease;
