@@ -19,6 +19,7 @@ import GlobalPresence from './components/landing/GlobalPresence';
 import CoursesGallerySection from './components/landing/CoursesGallerySection';
 import LessonsPreviewSection from './components/landing/LessonsPreviewSection';
 import { useScrollReveal } from './hooks/useScrollReveal';
+import { useAppBranding } from './hooks/useAppBranding';
 
 // ===== Password gate inline =====
 const ADMIN_PASS = '20042007';
@@ -104,6 +105,8 @@ function AppContent() {
 
   // Scroll reveal
   useScrollReveal();
+  // اسم/أيقونة التطبيق المتزامنة من لوحة الإدارة (تبويب المتصفح + فافيكون)
+  useAppBranding();
 
   // Hash routing for /admin
   useEffect(() => {
