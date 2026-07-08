@@ -455,6 +455,7 @@ export default function CoursesSection() {
 
         {/* Course Grid */}
         <div
+          className="reveal-3d"
           style={{
             display: 'grid',
             gridTemplateColumns:
