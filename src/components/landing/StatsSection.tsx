@@ -62,10 +62,10 @@ export default function StatsSection() {
             {s.heading[lang]}<br /><span style={{ color: 'rgba(255,255,255,0.4)' }}>{s.sub[lang]}</span>
           </h2>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '48px' }}>
+        <div className="reveal-3d" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '48px' }}>
           {stats.map((stat) => <StatItem key={stat.label} {...stat} start={started} />)}
         </div>
-        <div style={{ marginTop: '80px', padding: '32px 40px', borderRadius: '24px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', textAlign: 'center' }}>
+        <div className="liquid-glass reveal" style={{ marginTop: '80px', padding: '32px 40px', borderRadius: '24px', textAlign: 'center' }}>
           <p style={{ fontFamily: "'Instrument Serif', serif", fontSize: 'clamp(1.2rem, 3vw, 2rem)', color: 'rgba(255,255,255,0.7)', fontStyle: 'italic', lineHeight: 1.5, maxWidth: '700px', margin: '0 auto' }}>
             {s.quote[lang]}
           </p>
