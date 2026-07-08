@@ -54,7 +54,7 @@ export default function InstructorsSection() {
             </a>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '24px' }}>
+        <div className="reveal-3d" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '24px' }}>
           {INSTRUCTORS.map((instructor) => <InstructorCard key={instructor.name} instructor={instructor} />)}
         </div>
       </div>
