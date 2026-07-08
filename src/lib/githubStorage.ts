@@ -42,7 +42,7 @@ export interface GithubConfig {
 }
 
 export const DEFAULT_GITHUB_CONFIG: GithubConfig = {
-  owner: '', repo: '', branch: 'main', path: 'content.json', token: '',
+  owner: 'youssefmd2244-droid', repo: 'minasa-taelimia', branch: 'main', path: 'content.json', token: '',
 };
 
 // ── تفضيل مصدر المحتوى ──────────────────────────────────────────────
