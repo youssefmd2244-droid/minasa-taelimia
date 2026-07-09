@@ -157,7 +157,6 @@ function ContentCard({ item, gradient, index, onOpen }: { item: ContentRow; grad
       style={{
         position: 'relative', borderRadius: '16px', overflow: 'hidden',
         border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         textAlign: 'start', cursor: 'pointer', display: 'flex', flexDirection: 'column', padding: 0,
       }}
     >
