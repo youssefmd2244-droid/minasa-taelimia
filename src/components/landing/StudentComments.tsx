@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { useSiteText } from '../../hooks/useSiteContent';
 import { Send, ThumbsUp, Clock } from 'lucide-react';
 import {
   fetchVisibleComments,
@@ -11,6 +12,8 @@ import {
 
 export default function StudentComments() {
   const { dir } = useLanguage();
+  const headingAr = useSiteText('studentComments.heading', 'آراء الطلاب');
+  const subheadingAr = useSiteText('studentComments.subheading', 'شاركنا رأيك');
   const [comments, setComments] = useState<PublicCommentRow[]>([]);
   const [likedIds, setLikedIds] = useState<number[]>([]);
   const [newText, setNewText] = useState('');
@@ -65,10 +68,10 @@ export default function StudentComments() {
         {/* Header */}
         <div className="reveal-3d" style={{ textAlign: 'center', marginBottom: '48px' }}>
           <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', color: '#f97316', textTransform: 'uppercase' }}>
-            {dir === 'rtl' ? 'آراء الطلاب' : 'Student Reviews'}
+            {dir === 'rtl' ? headingAr : 'Student Reviews'}
           </span>
           <h2 style={{ fontSize: 'clamp(24px, 5vw, 40px)', fontWeight: 800, color: 'white', marginTop: '12px', fontFamily: "'Cairo', sans-serif" }}>
-            {dir === 'rtl' ? 'شاركنا رأيك' : 'Share Your Thoughts'}
+            {dir === 'rtl' ? subheadingAr : 'Share Your Thoughts'}
           </h2>
         </div>
 
