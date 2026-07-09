@@ -87,12 +87,12 @@ function ContentCard({ item, gradient, index, onOpen }: { item: ContentRow; grad
         }}
       >
         {item.type === 'image' && item.file_url && (
-          <img src={item.file_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={item.file_url} alt={item.title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
         {item.type === 'video' && item.file_url && (
           <>
             {posterSrc ? (
-              <img src={posterSrc} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={posterSrc} alt={item.title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(107,191,122,0.25), rgba(20,20,30,0.6))' }} />
             )}
