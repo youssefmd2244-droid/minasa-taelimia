@@ -120,6 +120,8 @@ export default function HeroCarousel() {
           src={IMAGES[activeIndex].src}
           alt={IMAGES[activeIndex].label}
           draggable={false}
+          decoding="async"
+          fetchPriority={activeIndex === 0 ? 'high' : 'auto'}
           style={{
             maxHeight: '100%', maxWidth: isMobile ? '55%' : '32%',
             objectFit: 'contain',
