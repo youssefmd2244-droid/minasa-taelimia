@@ -92,11 +92,38 @@ interface RawAdminData {
   siteImages?: Record<string, string>;
 }
 
+// ── In-memory cache للبيانات المفكوكة (parsed) ──────────────────────────
+// المشكلة اللي كانت بتسبب "تهنيج فجأة" (لاج مفاجئ لثانية أو أكتر):
+// getBridgedContent/getBridgedSections بتتنادى من كل نسخة مفتوحة من
+// useSections/useContent (قسم لكل LessonList + SearchOverlay + CoursesSection
+// إلخ — ممكن يبقوا 10+ نسخة في نفس الصفحة)، وكل نسخة كانت بتعمل
+// JSON.parse() منفصل بالكامل لنفس الـ blob في localStorage. لما الـ blob ده
+// يحتوي على صور/فيديوهات مشفّرة base64 (fallback بيحصل لما رفع Storage
+// يفشل — راجع pushAppDataNow) ممكن يوصل لعدة ميجابايت، وJSON.parse لبيانات
+// بالحجم ده تكلفته حقيقية (مئات المللي ثانية) وبتحصل على الـ main thread
+// (بتوقف الرسم/اللمس تمامًا لحد ما تخلص). لما حدث واحد (ADMIN_DATA_EVENT
+// أو storage) يطلق كل النسخ المفتوحة تعيد القراءة في نفس اللحظة، النتيجة
+// عملية parse مكررة لنفس البيانات بالظبط N مرة بدل مرة واحدة — وده اللي
+// بيحس المستخدم إنه "تجمّد فجأة".
+// الحل: كاش بسيط في الذاكرة مربوط بمقارنة السلسلة الخام (raw string) —
+// لو مفيش تغيير فعلي في localStorage من آخر قراءة، نرجّع نفس الـ object
+// المفكوك من الذاكرة من غير ما نعمل JSON.parse تاني.
+let cachedRaw: string | null = null;
+let cachedParsed: RawAdminData | null = null;
+
 function readAdminData(): RawAdminData | null {
   try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as RawAdminData;
+    if (!raw) {
+      cachedRaw = null;
+      cachedParsed = null;
+      return null;
+    }
+    if (raw === cachedRaw) return cachedParsed;
+    const parsed = JSON.parse(raw) as RawAdminData;
+    cachedRaw = raw;
+    cachedParsed = parsed;
+    return parsed;
   } catch {
     return null;
   }
@@ -105,7 +132,13 @@ function readAdminData(): RawAdminData | null {
 /** يكتب نسخة جديدة من بيانات لوحة الإدارة في الكاش المحلي بدون إطلاق حدث. */
 function writeAdminDataCache(data: RawAdminData): void {
   try {
-    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(data));
+    const raw = JSON.stringify(data);
+    localStorage.setItem(ADMIN_STORAGE_KEY, raw);
+    // نحدّث الكاش في الذاكرة فورًا بنفس القيمة المكتوبة، عشان أي قراءة
+    // جاية فورًا (نفس التبويب) تاخد الـ object الجاهز من غير ما تعمل
+    // JSON.parse تاني لنفس البيانات اللي إحنا أصلاً عندنا نسختها الأصلية.
+    cachedRaw = raw;
+    cachedParsed = data;
   } catch {
     // localStorage ممتلئ أو ممنوع في وضع خاص — نكمل بدون crash
   }
