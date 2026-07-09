@@ -163,24 +163,37 @@ async function pullFromSupabase(): Promise<RawAdminData | null> {
 }
 
 /**
- * يسحب أحدث نسخة من بيانات لوحة الإدارة، حسب "مصدر المحتوى" اللي
- * اختاره الأدمن من الإعدادات (Supabase / GitHub / كلاهما):
- *   - supabase (الافتراضي): زي ما كان بالظبط، مفيش تغيير في السلوك.
- *   - github: يقرأ ملف content.json من الريبو العام مباشرة (بلا توكن).
- *   - both: يجرّب Supabase الأول (أسرع لأنه Realtime)، ولو فشل أو
- *     مفيش بيانات، يرجع لـ GitHub كمصدر احتياطي.
+ * ملحوظة مهمة (باگ تم اكتشافه وإصلاحه هنا): "مصدر المحتوى" (getContentSource)
+ * بيتقرا من localStorage الخاص بكل جهاز على حدة — يعني اختيار الأدمن لـ
+ * "GitHub فقط" بيتحفظ على جهاز الأدمن هو بس. أي جهاز/متصفح تاني (كل
+ * المستخدمين العاديين) لسه شايف القيمة الافتراضية "supabase" في
+ * localStorage بتاعه هو، لأنه أصلاً مفتحش شاشة الإعدادات دي أبداً.
+ * فكانت النتيجة: الأدمن ينشر تعديل على GitHub، لكن كل الأجهزة التانية
+ * تفضل تحاول تقرا من Supabase بس (اللي مفيهوش أي بيانات في وضع GitHub
+ * الخالص) — فالمحتوى الجديد میظهرش عند حد إلا عند الأدمن نفسه.
+ *
+ * الحل: القراءة (على عكس النشر) لازم تحاول كل المصادر المتاحة فعليًا
+ * بغض النظر عن قيمة "المصدر" المحلية على الجهاز اللي بيقرا، مش بس على
+ * جهاز الأدمن. بنجرب Supabase الأول (أسرع + Realtime)، ولو مفيش بيانات
+ * فيه (null) بنرجع لـ GitHub تلقائيًا طالما بياناته الأساسية (owner/repo)
+ * موجودة — سواء كان الجهاز اللي بيقرا "عارف" إن الأدمن اختار GitHub أو لأ.
  */
+let lastPullSource: 'supabase' | 'github' | null = null;
+
 export async function pullRemoteAppData(): Promise<RawAdminData | null> {
-  const source = getContentSource();
-  if (source === 'github') {
-    if (!isGithubConfigured()) return null;
-    return (await pullFromGithubRaw<RawAdminData>()) || null;
-  }
   const fromSupabase = await pullFromSupabase();
-  if (fromSupabase) return fromSupabase;
-  if (source === 'both' && isGithubConfigured()) {
-    return (await pullFromGithubRaw<RawAdminData>()) || null;
+  if (fromSupabase) {
+    lastPullSource = 'supabase';
+    return fromSupabase;
   }
+  if (isGithubConfigured()) {
+    const fromGithub = await pullFromGithubRaw<RawAdminData>();
+    if (fromGithub) {
+      lastPullSource = 'github';
+      return fromGithub;
+    }
+  }
+  lastPullSource = null;
   return null;
 }
 
@@ -305,35 +318,36 @@ export function initAdminBridgeSync(): void {
     }
   });
 
-  // Supabase Realtime: بيوصّل التغييرات فورًا لما يكون Supabase مصدر فعّال
+  // Supabase Realtime: بيوصّل التغييرات فورًا لما يكون في بيانات فعلية على
+  // Supabase (بغض النظر عن "مصدر المحتوى" المحلي بتاع الجهاز ده — انظر
+  // شرح الباگ اللي تم إصلاحه فوق pullRemoteAppData).
   if (isSupabaseConfigured && supabase) {
     supabase
       .channel('app-data-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: APP_DATA_TABLE }, () => {
-        const source = getContentSource();
-        if (source === 'supabase' || source === 'both') {
-          pullRemoteAppData().then(applyRemote);
-        }
+        pullRemoteAppData().then(applyRemote);
       })
       .subscribe();
   }
 
   // GitHub مفيهوش آلية realtime مجانية زي Supabase — بنعمل polling بسيط
-  // بدل كده. كل 10 ثوانٍ (مش 45) لو GitHub مصدر فعّال، بنقرا الملف من
-  // جديد ونحدّث بس لو فعلاً اتغيّر. الرابط اللي بنقرا منه (raw.githubusercontent.com)
-  // بيتقدّم عن طريق CDN مش الـ API نفسه، فمفيش خطر إنه يضرب حد الطلبات
-  // (rate limit) حتى مع فترة قصيرة زي دي. برضه ده "قريب من الفوري"
-  // مش فوري 100% زي Supabase Realtime (اللي بيوصل التغيير في أجزاء من
-  // الثانية بمجرد ما يحصل، من غير ما يستنى دورة تانية).
+  // بدل كده. كل 10 ثوانٍ، لو GitHub متاح (owner/repo موجودين) وSupabase
+  // مش هو مصدر البيانات الحالي فعليًا (يعني آخر سحب ناجح كان من GitHub،
+  // أو Supabase مش متصل أصلاً)، بنقرا ملف content.json من جديد ونحدّث
+  // بس لو فعلاً اتغيّر. ملحوظة: بنعتمد على `lastPullSource` (نتيجة آخر
+  // pullRemoteAppData فعلي) بدل "مصدر المحتوى" المحلي، عشان الـ polling
+  // يشتغل حتى لو الجهاز ده أصلاً مفتحش شاشة الإعدادات ومحفوظ عنده القيمة
+  // الافتراضية supabase.
   let lastGithubSnapshot = '';
   setInterval(() => {
-    const source = getContentSource();
-    if (source !== 'github' && source !== 'both') return;
+    if (!isGithubConfigured()) return;
+    if (isSupabaseConfigured && lastPullSource === 'supabase') return; // Realtime بيتكفّل بيها بالفعل
     pullFromGithubRaw<RawAdminData>().then((remote) => {
       if (!remote) return;
       const snapshot = JSON.stringify(remote);
       if (snapshot === lastGithubSnapshot) return; // مفيش تغيير فعلي
       lastGithubSnapshot = snapshot;
+      lastPullSource = 'github';
       applyRemote(remote);
     });
   }, 10_000);
