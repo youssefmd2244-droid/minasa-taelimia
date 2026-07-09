@@ -1,7 +1,13 @@
 import { motion } from 'framer-motion';
 import Globe from '../ui/globe';
+import { useSiteText } from '../../hooks/useSiteContent';
 
 export default function GlobalPresence() {
+  const eyebrow = useSiteText('globalPresence.eyebrow', 'انتشارنا العالمي');
+  const headingLine1 = useSiteText('globalPresence.headingLine1', 'طلاب من كل');
+  const headingLine2 = useSiteText('globalPresence.headingLine2', 'أنحاء العالم العربي');
+  const statHeading = useSiteText('globalPresence.statHeading', 'منصة بتكبر يوم بعد يوم');
+  const statSub = useSiteText('globalPresence.statSub', 'طلاب بينضموا من كل حتة في الوطن العربي');
   return (
     <section className="py-20 px-4 overflow-hidden" style={{ background: 'linear-gradient(135deg, #050510 0%, #0a0a20 50%, #050510 100%)' }}>
       <div className="max-w-xl mx-auto">
@@ -9,7 +15,7 @@ export default function GlobalPresence() {
         <motion.div className="text-center mb-12"
           initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }} transition={{ duration: 0.7 }}>
-          <p className="text-xs text-white/30 tracking-widest uppercase mb-3">انتشارنا العالمي</p>
+          <p className="text-xs text-white/30 tracking-widest uppercase mb-3">{eyebrow}</p>
           <motion.h2
             className="text-3xl font-black text-white leading-tight inline-block"
             animate={{
@@ -29,8 +35,8 @@ export default function GlobalPresence() {
             }}
             style={{ transformStyle: 'preserve-3d', perspective: '600px', backfaceVisibility: 'hidden' }}
           >
-            طلاب من كل<br />
-            <span style={{ color: '#f97316' }}>أنحاء العالم العربي</span>
+            {headingLine1}<br />
+            <span style={{ color: '#f97316' }}>{headingLine2}</span>
           </motion.h2>
         </motion.div>
 
@@ -45,8 +51,8 @@ export default function GlobalPresence() {
         <motion.div className="text-center mt-2"
           initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
           viewport={{ once: true }} transition={{ delay: 0.4 }}>
-          <p className="text-2xl font-black text-white">منصة بتكبر يوم بعد يوم</p>
-          <p className="text-sm text-white/40 mt-1">طلاب بينضموا من كل حتة في الوطن العربي</p>
+          <p className="text-2xl font-black text-white">{statHeading}</p>
+          <p className="text-sm text-white/40 mt-1">{statSub}</p>
         </motion.div>
       </div>
     </section>
