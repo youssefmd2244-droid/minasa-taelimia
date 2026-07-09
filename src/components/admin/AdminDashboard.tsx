@@ -5,7 +5,9 @@ import {
   Check, Eye, EyeOff, Palette, Globe, Save, ArrowLeft, Home, Star, Shield, Power,
   Lightbulb, Bell, Image as ImageIcon, Video, UploadCloud, Type, Mic, MicOff, Download,
   File, Music, StopCircle, ZoomIn, Monitor, Loader2, AlertCircle, GraduationCap, ArrowUp, ArrowDown,
+  RotateCcw, ChevronDown, ChevronUp,
 } from 'lucide-react';
+import { SITE_TEXT_FIELDS, SITE_IMAGE_FIELDS } from '../../lib/siteContentRegistry';
 import DisplayScreen from './DisplayScreen';
 import ContentSourcePanel from './ContentSourcePanel';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
@@ -70,6 +72,9 @@ interface AdminData {
   courses: GalleryCourse[];
   themeColors: string[]; maintenanceMode: boolean; rgbLighting: boolean;
   notifications: boolean; downloadFeatureEnabled: boolean;
+  /** تعديلات "نصوص والصور" — راجع src/lib/siteContentRegistry.ts للمفاتيح المتاحة. */
+  siteTexts: Record<string, string>;
+  siteImages: Record<string, string>;
 }
 
 // ─── Props interface ───
@@ -111,6 +116,7 @@ const DEFAULT_DATA: AdminData = {
   // نهائيًا؛ لوحة الإدارة دلوقتي بتبدأ بأقسام بس من غير أي محتوى وهمي.
   contentItems: [],
   records: [], files: [],
+  siteTexts: {}, siteImages: {},
 };
 
 /**
@@ -1245,10 +1251,171 @@ function TrashTab({ sections, setSections, content, setContent, records, setReco
 }
 
 /* ─── Settings Tab ─── */
-function SettingsTab({ appName, setAppName, appIconUrl, setAppIconUrl, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, onPasswordChange, onSaveNow, saveStatus, saveWasCloud, saveErrorMessage, getCurrentDataSnapshot }: {
+/**
+ * TextsImagesPanel — قسم "نصوص والصور" جوه الإعدادات: بيسمح للأدمن يعدّل
+ * (أو يرجّع للأصل) أي نص أو صورة من كتالوج siteContentRegistry.ts.
+ * التعديلات دي بتتحفظ وبتتزامن بنفس آلية باقي بيانات لوحة الإدارة
+ * (localStorage + Supabase/GitHub)، وبتظهر فورًا لكل المستخدمين — راجع
+ * useSiteText/useSiteImage في src/hooks/useSiteContent.ts.
+ */
+function TextsImagesPanel({ siteTexts, setSiteTexts, siteImages, setSiteImages }: {
+  siteTexts: Record<string, string>; setSiteTexts: (v: Record<string, string>) => void;
+  siteImages: Record<string, string>; setSiteImages: (v: Record<string, string>) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState('');
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
+
+  const q = query.trim().toLowerCase();
+  const textFields = SITE_TEXT_FIELDS.filter(f => !q || f.label.toLowerCase().includes(q) || f.group.toLowerCase().includes(q) || f.default.toLowerCase().includes(q));
+  const imageFields = SITE_IMAGE_FIELDS.filter(f => !q || f.label.toLowerCase().includes(q) || f.group.toLowerCase().includes(q));
+
+  const groupBy = <T extends { group: string }>(arr: T[]) => {
+    const map = new Map<string, T[]>();
+    for (const item of arr) { const list = map.get(item.group) || []; list.push(item); map.set(item.group, list); }
+    return Array.from(map.entries());
+  };
+
+  const editedCount = Object.keys(siteTexts).length + Object.keys(siteImages).length;
+
+  const setText = (key: string, value: string, def: string) => {
+    const next = { ...siteTexts };
+    if (value === def) delete next[key]; else next[key] = value;
+    setSiteTexts(next);
+  };
+  const resetText = (key: string) => { const next = { ...siteTexts }; delete next[key]; setSiteTexts(next); };
+  const resetImage = (key: string) => { const next = { ...siteImages }; delete next[key]; setSiteImages(next); };
+  const setImage = (key: string, value: string) => setSiteImages({ ...siteImages, [key]: value });
+
+  const pickImage = async (key: string, file: File) => {
+    setUploadingKey(key);
+    try {
+      const result = await uploadMediaFile(file, 'site-content');
+      if (result.url) setImage(key, result.url);
+      else if (result.error) window.alert(`فشل رفع الصورة: ${result.error}`);
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Type size={16} className="text-white/60" />
+          <h3 className="text-base font-bold text-white">نصوص والصور</h3>
+          {editedCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(249,115,22,0.18)', color: '#f97316' }}>{editedCount} معدّل</span>
+          )}
+        </div>
+        {expanded ? <ChevronUp size={16} className="text-white/40" /> : <ChevronDown size={16} className="text-white/40" />}
+      </button>
+      <p className="text-xs text-white/40 mt-2">
+        تعديل أو حذف أي نص أو صورة ظاهرة في التطبيق مباشرة — من غير ما تلمس الكود. أي تغيير هنا بيوصل فورًا لكل المستخدمين.
+      </p>
+
+      {expanded && (
+        <div className="mt-4 space-y-5">
+          <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="دوّر على نص أو صورة..."
+            className="w-full px-3 py-2.5 rounded-xl text-white placeholder-white/25 outline-none text-sm" style={inp} />
+
+          {/* النصوص */}
+          {textFields.length > 0 && (
+            <div>
+              <h4 className="text-xs font-bold text-white/40 uppercase tracking-wide mb-2 flex items-center gap-1.5"><Type size={12} /> النصوص</h4>
+              <div className="space-y-4">
+                {groupBy(textFields).map(([group, fields]) => (
+                  <div key={group}>
+                    <p className="text-[11px] font-bold text-orange-400/80 mb-1.5">{group}</p>
+                    <div className="space-y-2">
+                      {fields.map(f => {
+                        const current = siteTexts[f.key] ?? f.default;
+                        const isEdited = f.key in siteTexts;
+                        return (
+                          <div key={f.key} className="rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-xs text-white/55">{f.label}</span>
+                              {isEdited && (
+                                <button onClick={() => resetText(f.key)} className="text-[10px] flex items-center gap-1 text-white/35 hover:text-white/70">
+                                  <RotateCcw size={10} /> رجّع الأصلي
+                                </button>
+                              )}
+                            </div>
+                            {f.multiline ? (
+                              <textarea value={current} onChange={e => setText(f.key, e.target.value, f.default)} rows={2}
+                                className="w-full px-3 py-2 rounded-lg text-white outline-none text-sm resize-none" style={inp} />
+                            ) : (
+                              <input type="text" value={current} onChange={e => setText(f.key, e.target.value, f.default)}
+                                className="w-full px-3 py-2 rounded-lg text-white outline-none text-sm" style={inp} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* الصور */}
+          {imageFields.length > 0 && (
+            <div>
+              <h4 className="text-xs font-bold text-white/40 uppercase tracking-wide mb-2 flex items-center gap-1.5"><ImageIcon size={12} /> الصور</h4>
+              <div className="space-y-3">
+                {groupBy(imageFields).map(([group, fields]) => (
+                  <div key={group}>
+                    <p className="text-[11px] font-bold text-orange-400/80 mb-1.5">{group}</p>
+                    <div className="space-y-2">
+                      {fields.map(f => {
+                        const current = siteImages[f.key] ?? f.default;
+                        const isEdited = f.key in siteImages;
+                        return (
+                          <div key={f.key} className="rounded-xl p-2.5 flex items-center gap-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                            <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                              {current ? <img src={current} alt={f.label} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-white/20" /></div>}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-white/55 truncate">{f.label}</span>
+                                {isEdited && (
+                                  <button onClick={() => resetImage(f.key)} className="text-[10px] flex items-center gap-1 text-white/35 hover:text-white/70 flex-shrink-0">
+                                    <RotateCcw size={10} /> رجّع الأصلي
+                                  </button>
+                                )}
+                              </div>
+                              <label className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer hover:bg-white/20 transition-colors w-fit">
+                                {uploadingKey === f.key ? <><Loader2 size={12} className="animate-spin" /> جاري الرفع...</> : <><UploadCloud size={12} /> رفع صورة جديدة</>}
+                                <input type="file" accept="image/*" className="hidden" disabled={uploadingKey === f.key}
+                                  onChange={e => { const file = e.target.files?.[0]; if (file) pickImage(f.key, file); e.target.value = ''; }} />
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {textFields.length === 0 && imageFields.length === 0 && (
+            <p className="text-xs text-white/30 text-center py-4">مفيش نتائج مطابقة للبحث</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsTab({ appName, setAppName, appIconUrl, setAppIconUrl, themeColors, setThemeColors, maintenanceMode, setMaintenanceMode, rgbLighting, setRgbLighting, notifications, setNotifications, downloadFeatureEnabled, setDownloadFeatureEnabled, siteTexts, setSiteTexts, siteImages, setSiteImages, onPasswordChange, onSaveNow, saveStatus, saveWasCloud, saveErrorMessage, getCurrentDataSnapshot }: {
   appName: string; setAppName: (v: string) => void; appIconUrl: string; setAppIconUrl: (v: string) => void; themeColors: string[]; setThemeColors: (v: string[]) => void;
   maintenanceMode: boolean; setMaintenanceMode: (v: boolean) => void; rgbLighting: boolean; setRgbLighting: (v: boolean) => void;
   notifications: boolean; setNotifications: (v: boolean) => void; downloadFeatureEnabled: boolean; setDownloadFeatureEnabled: (v: boolean) => void;
+  siteTexts: Record<string, string>; setSiteTexts: (v: Record<string, string>) => void;
+  siteImages: Record<string, string>; setSiteImages: (v: Record<string, string>) => void;
   onPasswordChange?: (pw: string) => void;
   onSaveNow: () => void; saveStatus: 'idle' | 'saving' | 'saved' | 'error'; saveWasCloud: boolean; saveErrorMessage: string | null;
   /** بيرجّع أحدث نسخة من كل بيانات لوحة الإدارة — بنستخدمها لحظة تغيير
@@ -1381,6 +1548,8 @@ function SettingsTab({ appName, setAppName, appIconUrl, setAppIconUrl, themeColo
           <ToggleRow icon={<Download size={15} />} label="أزرار التنزيل" description="تفعيل التنزيل لكل محتوى" checked={downloadFeatureEnabled} onChange={setDownloadFeatureEnabled} />
         </div>
       </div>
+      {/* نصوص والصور */}
+      <TextsImagesPanel siteTexts={siteTexts} setSiteTexts={setSiteTexts} siteImages={siteImages} setSiteImages={setSiteImages} />
       {/* Storage */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <h3 className="text-base font-bold text-white mb-3">التخزين</h3>
@@ -1487,10 +1656,12 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
   const [records, setRecords] = useState<RecordItem[]>(data.records);
   const [files, setFiles] = useState<FileItem[]>(data.files);
   const [courses, setCourses] = useState<GalleryCourse[]>(data.courses && data.courses.length ? data.courses : DEFAULT_GALLERY_COURSES);
+  const [siteTexts, setSiteTexts] = useState<Record<string, string>>(data.siteTexts || {});
+  const [siteImages, setSiteImages] = useState<Record<string, string>>(data.siteImages || {});
 
   useEffect(() => {
-    saveData({ appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses });
-  }, [appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses]);
+    saveData({ appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses, siteTexts, siteImages });
+  }, [appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses, siteTexts, siteImages]);
 
   // زرار "حفظ الآن" في الإعدادات — بيجمع أحدث نسخة من كل حاجة (أقسام،
   // محتوى، ملفات، تسجيلات، إعدادات) ويحفظها فورًا (محلي + Supabase لو
@@ -1503,13 +1674,13 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
     setSaveErrorMessage(null);
     const result = await saveDataNow({
       appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled,
-      sections, contentItems, records, files, courses,
+      sections, contentItems, records, files, courses, siteTexts, siteImages,
     });
     setSaveWasCloud(result.cloud);
     setSaveStatus(result.ok ? 'saved' : 'error');
     if (!result.ok) setSaveErrorMessage(result.message || 'خطأ غير معروف');
     setTimeout(() => setSaveStatus('idle'), result.ok ? 3500 : 8000);
-  }, [appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses]);
+  }, [appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses, siteTexts, siteImages]);
 
   // عند فتح لوحة الإدارة أول مرة على أي جهاز، نسحب أحدث نسخة حقيقية من
   // Supabase ونستبدل بيها القيم المحلية (اللي ممكن تكون بيانات تجريبية
@@ -1533,6 +1704,8 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
       setRecords(merged.records);
       setFiles(merged.files);
       setCourses(merged.courses && merged.courses.length ? merged.courses : DEFAULT_GALLERY_COURSES);
+      setSiteTexts(merged.siteTexts || {});
+      setSiteImages(merged.siteImages || {});
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1648,7 +1821,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             {activeTab === 'analytics' && <AnalyticsTab content={contentItems} records={records} files={files} />}
             {activeTab === 'trash' && <TrashTab sections={sections} setSections={setSections} content={contentItems} setContent={setContentItems} records={records} setRecords={setRecords} files={files} setFiles={setFiles} />}
             {activeTab === 'display' && <DisplayScreen />}
-            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} appIconUrl={appIconUrl} setAppIconUrl={setAppIconUrl} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} getCurrentDataSnapshot={() => ({ appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses })} />}
+            {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} appIconUrl={appIconUrl} setAppIconUrl={setAppIconUrl} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} siteTexts={siteTexts} setSiteTexts={setSiteTexts} siteImages={siteImages} setSiteImages={setSiteImages} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} getCurrentDataSnapshot={() => ({ appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses, siteTexts, siteImages })} />}
 
           </motion.div>
         </AnimatePresence>
