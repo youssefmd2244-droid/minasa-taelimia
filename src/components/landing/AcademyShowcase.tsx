@@ -227,6 +227,9 @@ function AcademyHero() {
 
 // ========== SECTION 2: Teaching Philosophy ==========
 function TeachingPhilosophy() {
+  const imageLarge = useSiteImage('academy.imageLarge', 'https://images.pexels.com/photos/7777691/pexels-photo-7777691.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=600&w=900');
+  const imageSmall1 = useSiteImage('academy.imageSmall1', 'https://images.pexels.com/photos/9159039/pexels-photo-9159039.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=400&w=600');
+  const imageSmall2 = useSiteImage('academy.imageSmall2', 'https://images.pexels.com/photos/8926887/pexels-photo-8926887.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=400&w=600');
   const features = [
     { icon: <BookOpen size={18} />, text: 'منهج منظم لكل مستوى' },
     { icon: <Users size={18} />, text: 'مدرّسون متخصصون وأسئلة مباشرة' },
