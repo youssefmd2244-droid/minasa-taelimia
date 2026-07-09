@@ -293,7 +293,7 @@ export default function DisplayScreen() {
                 {/* Preview thumbnail (image / gif / icon / 3D graphic) */}
                 {item.preview && (
                   <div style={{ marginBottom: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
-                    <img src={item.preview} alt={item.title} style={{ width: '100%', maxHeight: '140px', objectFit: 'contain', display: 'block' }} />
+                    <img src={item.preview} alt={item.title} loading="lazy" decoding="async" style={{ width: '100%', maxHeight: '140px', objectFit: 'contain', display: 'block' }} />
                   </div>
                 )}
 
