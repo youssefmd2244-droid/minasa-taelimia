@@ -85,6 +85,11 @@ interface RawAdminData {
   courses?: RawGalleryCourse[];
   appName?: string;
   appIconUrl?: string;
+  /** تعديلات الأدمن على نصوص الموقع (تبويب "نصوص والصور" في الإعدادات) —
+   *  مفتاح ثابت (راجع siteContentRegistry.ts) لكل قيمة نصية. */
+  siteTexts?: Record<string, string>;
+  /** نفس الفكرة بس لصور الموقع (روابط). */
+  siteImages?: Record<string, string>;
 }
 
 function readAdminData(): RawAdminData | null {
@@ -501,4 +506,11 @@ export function getBridgedCourses(): RawGalleryCourse[] {
 export function getBridgedBranding(): { appName?: string; appIconUrl?: string } {
   const data = readAdminData();
   return { appName: data?.appName, appIconUrl: data?.appIconUrl };
+}
+
+/** يرجّع تعديلات الأدمن على نصوص وصور الموقع (تبويب "نصوص والصور")،
+ *  فاضية لو الأدمن لسه ما عدّلش أي حاجة — راجع useSiteContent.ts. */
+export function getBridgedSiteContent(): { texts: Record<string, string>; images: Record<string, string> } {
+  const data = readAdminData();
+  return { texts: data?.siteTexts || {}, images: data?.siteImages || {} };
 }
