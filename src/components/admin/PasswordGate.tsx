@@ -37,8 +37,8 @@ export default function PasswordGate({ currentPassword, onSuccess }: PasswordGat
 
   return (
     <div
+      className="vh-full"
       style={{
-        minHeight: '100vh',
         background: 'linear-gradient(135deg, #050510 0%, #0a0a20 50%, #050510 100%)',
         display: 'flex',
         alignItems: 'center',
