@@ -16,8 +16,8 @@ function AcademyHero() {
 
   return (
     <div
+      className="vh-full"
       style={{
-        minHeight: '100vh',
         background: 'linear-gradient(135deg, #050510 0%, #0a0a20 40%, #050510 100%)',
         display: 'flex',
         flexDirection: 'column',
