@@ -5,15 +5,22 @@ import { useRef, useCallback } from 'react';
  * مع لمسة الإصبع/الماوس، بدل ما يكون flat. بيشتغل عن طريق تحديث CSS
  * variables (--tilt-x, --tilt-y, --tilt-z) اللي كلاس .tilt-3d بيقراها.
  *
- * الاستخدام:
- *   const tiltRef = useTilt3D<HTMLDivElement>();
- *   <div ref={tiltRef} className="tilt-3d glass-premium">...</div>
+ * ملاحظة أداء مهمة: على أجهزة اللمس (موبايل)، أي شغل جوه touchmove
+ * بيتنفذ عشرات المرات في الثانية على نفس الـ thread اللي بيحرك السكرول —
+ * ده بالظبط سبب البطء اللي كان موجود في circular-gallery.tsx قبل كده
+ * (نفس الملف فيه تعليق موثّق بالمشكلة دي). عشان كده هنا بنتجاهل اللمس
+ * تمامًا على أجهزة اللمس (pointer: coarse) ومنسيبش غير الماوس على
+ * الديسكتوب، فعليًا زيرو تكلفة على الموبايل بدل ما تتكل على CSS بس.
  */
+const isCoarsePointer =
+  typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+
 export function useTilt3D<T extends HTMLElement>(maxDeg: number = 10) {
   const ref = useRef<T>(null);
 
   const handleMove = useCallback(
     (clientX: number, clientY: number) => {
+      if (isCoarsePointer) return; // موبايل/تاتش: من غير أي شغل خالص
       const el = ref.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
@@ -31,6 +38,7 @@ export function useTilt3D<T extends HTMLElement>(maxDeg: number = 10) {
   );
 
   const reset = useCallback(() => {
+    if (isCoarsePointer) return;
     const el = ref.current;
     if (!el) return;
     el.classList.add('tilt-idle');
@@ -46,6 +54,7 @@ export function useTilt3D<T extends HTMLElement>(maxDeg: number = 10) {
   );
   const onTouchMove = useCallback(
     (e: React.TouchEvent) => {
+      if (isCoarsePointer) return;
       const t = e.touches[0];
       if (t) handleMove(t.clientX, t.clientY);
     },
