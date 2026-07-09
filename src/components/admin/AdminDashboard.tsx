@@ -24,7 +24,7 @@ import { genId } from '../../utils/id';
 const REQUIRED_AUTH_CODE = 'Yy2004//';
 const STORAGE_KEY = 'eduverse_admin_data';
 
-type Tab = 'dashboard' | 'settings' | 'sections' | 'content' | 'record' | 'files' | 'comments' | 'analytics' | 'trash' | 'display' | 'gallery';
+type Tab = 'dashboard' | 'settings' | 'sections' | 'content' | 'record' | 'files' | 'comments' | 'analytics' | 'trash' | 'display' | 'gallery' | 'texts';
 
 interface Section { id: number; title: string; isVisible: boolean; isDeleted: boolean; displayOrder: number; }
 interface Attachment { url: string; name: string; type: 'image' | 'video' | 'audio'; }
@@ -1258,11 +1258,13 @@ function TrashTab({ sections, setSections, content, setContent, records, setReco
  * (localStorage + Supabase/GitHub)، وبتظهر فورًا لكل المستخدمين — راجع
  * useSiteText/useSiteImage في src/hooks/useSiteContent.ts.
  */
-function TextsImagesPanel({ siteTexts, setSiteTexts, siteImages, setSiteImages }: {
+function TextsImagesPanel({ siteTexts, setSiteTexts, siteImages, setSiteImages, startExpanded }: {
   siteTexts: Record<string, string>; setSiteTexts: (v: Record<string, string>) => void;
   siteImages: Record<string, string>; setSiteImages: (v: Record<string, string>) => void;
+  /** لما تتفتح كـ تبويب مستقل (وليها الشاشة كلها) يبقى منطقي إنها تبدأ مفتوحة بدل ما تتطلب ضغطة زيادة. */
+  startExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(!!startExpanded);
   const [query, setQuery] = useState('');
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const inp: React.CSSProperties = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' };
@@ -1548,8 +1550,7 @@ function SettingsTab({ appName, setAppName, appIconUrl, setAppIconUrl, themeColo
           <ToggleRow icon={<Download size={15} />} label="أزرار التنزيل" description="تفعيل التنزيل لكل محتوى" checked={downloadFeatureEnabled} onChange={setDownloadFeatureEnabled} />
         </div>
       </div>
-      {/* نصوص والصور */}
-      <TextsImagesPanel siteTexts={siteTexts} setSiteTexts={setSiteTexts} siteImages={siteImages} setSiteImages={setSiteImages} />
+      {/* نصوص والصور — بقت تبويب مستقل جنب باقي التبويبات (شوف tabs[] فوق)، بدل ما تكون مطمورة هنا. */}
       {/* Storage */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <h3 className="text-base font-bold text-white mb-3">التخزين</h3>
@@ -1725,6 +1726,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
     { id: 'trash', label: 'محذوفات', icon: <Trash2 size={15} /> },
     { id: 'display', label: 'شاشة العرض', icon: <Monitor size={15} /> },
     { id: 'settings', label: 'الإعدادات', icon: <Settings size={15} /> },
+    { id: 'texts', label: 'نصوص وصور', icon: <Type size={15} /> },
   ];
 
   const totalDeleted = sections.filter(s => s.isDeleted).length + contentItems.filter(c => c.isDeleted).length +
@@ -1821,6 +1823,7 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
             {activeTab === 'analytics' && <AnalyticsTab content={contentItems} records={records} files={files} />}
             {activeTab === 'trash' && <TrashTab sections={sections} setSections={setSections} content={contentItems} setContent={setContentItems} records={records} setRecords={setRecords} files={files} setFiles={setFiles} />}
             {activeTab === 'display' && <DisplayScreen />}
+            {activeTab === 'texts' && <TextsImagesPanel siteTexts={siteTexts} setSiteTexts={setSiteTexts} siteImages={siteImages} setSiteImages={setSiteImages} startExpanded />}
             {activeTab === 'settings' && <SettingsTab appName={appName} setAppName={setAppName} appIconUrl={appIconUrl} setAppIconUrl={setAppIconUrl} themeColors={themeColors} setThemeColors={setThemeColors} maintenanceMode={maintenanceMode} setMaintenanceMode={setMaintenanceMode} rgbLighting={rgbLighting} setRgbLighting={setRgbLighting} notifications={notifications} setNotifications={setNotifications} downloadFeatureEnabled={downloadFeatureEnabled} setDownloadFeatureEnabled={setDownloadFeatureEnabled} siteTexts={siteTexts} setSiteTexts={setSiteTexts} siteImages={siteImages} setSiteImages={setSiteImages} onPasswordChange={onPasswordChange} onSaveNow={handleSaveNow} saveStatus={saveStatus} saveWasCloud={saveWasCloud} saveErrorMessage={saveErrorMessage} getCurrentDataSnapshot={() => ({ appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses, siteTexts, siteImages })} />}
 
           </motion.div>
