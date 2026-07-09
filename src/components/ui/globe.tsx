@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 
 interface GlobeProps {
   /** حجم الكرة (px) — default 200 */
@@ -9,31 +9,60 @@ interface GlobeProps {
   mouseTracking?: boolean;
 }
 
+// نفس المشكلة اللي كانت موجودة في useTilt3D.ts و circular-gallery.tsx قبل
+// إصلاحها هناك: كان في addEventListener('mousemove') على الـ window بيعمل
+// setState (React re-render) في كل بكسل تتحرك فيه الماوس — من غير أي
+// throttling ومن غير استثناء لأجهزة اللمس. ده كان بيسبب مئات الـ re-renders
+// في الثانية طول ما القسم ده ظاهر على الشاشة، وبيتنافس مع السكرول على نفس
+// الـ main thread فيسبب البطء المحسوس في التطبيق كله. الحل هنا مطابق
+// تمامًا للنمط المستخدم في useTilt3D: تجاهل تام على (pointer: coarse)،
+// وكتابة مباشرة على style العنصر عن طريق ref (من غير React state) عشان
+// صفر re-renders، مع تحديد المعدل بـ requestAnimationFrame.
+const isCoarsePointer =
+  typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+
 const Globe: React.FC<GlobeProps> = ({ size = 200, autoSpeed = 30, mouseTracking = true }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
+  const rafRef = useRef<number | null>(null);
+  const pendingRef = useRef<{ x: number; y: number } | null>(null);
+
+  const applyTilt = useCallback((x: number, y: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.style.transform = `perspective(800px) rotateX(${x}deg) rotateY(${y}deg)`;
+  }, []);
 
   useEffect(() => {
-    if (!mouseTracking) return;
+    if (!mouseTracking || isCoarsePointer) return; // موبايل: زيرو تكلفة تمامًا
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
-      // Normalize -1 to 1
       const nx = (e.clientX - cx) / (window.innerWidth / 2);
       const ny = (e.clientY - cy) / (window.innerHeight / 2);
-      setTilt({ x: ny * -18, y: nx * 18 });
+      pendingRef.current = { x: ny * -18, y: nx * 18 };
+      // rAF-throttle: نطبّق آخر قيمة وصلت مرة واحدة بس لكل فريم، بدل ما
+      // نعمل setState/style update في كل حدث mousemove على حدة.
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          if (pendingRef.current) applyTilt(pendingRef.current.x, pendingRef.current.y);
+        });
+      }
     };
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [mouseTracking]);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [mouseTracking, applyTilt]);
 
   // Reset tilt on mouse leave
   const handleMouseLeave = () => {
     setIsHovered(false);
-    setTilt({ x: 0, y: 0 });
+    if (!isCoarsePointer) applyTilt(0, 0);
   };
 
   return (
@@ -61,8 +90,9 @@ const Globe: React.FC<GlobeProps> = ({ size = 200, autoSpeed = 30, mouseTracking
           justifyContent: 'center',
           width: size,
           height: size,
-          // Outer 3D tilt — follows mouse globally
-          transform: `perspective(800px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+          // Outer 3D tilt — يتحدّث مباشرة عن طريق applyTilt (ref.style)،
+          // مش عن طريق React state، عشان مافيش re-render لكل حركة ماوس.
+          transform: 'perspective(800px) rotateX(0deg) rotateY(0deg)',
           transition: isHovered ? 'transform 0.05s linear' : 'transform 0.8s cubic-bezier(0.22,1,0.36,1)',
           willChange: 'transform',
         }}
