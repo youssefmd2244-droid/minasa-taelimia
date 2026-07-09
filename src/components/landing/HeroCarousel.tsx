@@ -72,13 +72,13 @@ export default function HeroCarousel() {
 
   return (
     <section
+      className="vh-full"
       style={{
         backgroundColor: IMAGES[activeIndex].bg,
         transition: 'background-color 500ms ease',
         fontFamily: 'Inter, sans-serif',
         position: 'relative',
         width: '100%',
-        minHeight: '100vh',
       }}
     >
       {/* Giant title text */}
@@ -110,9 +110,9 @@ export default function HeroCarousel() {
       {/* Single centered image — no absolute-positioned side items, no 3D, no blur */}
       <div
         style={{
-          position: 'relative', zIndex: 3, width: '100%', height: isMobile ? '55vh' : '80vh',
+          position: 'relative', zIndex: 3, width: '100%', height: isMobile ? '55dvh' : '80dvh',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-          paddingTop: isMobile ? '25vh' : '15vh',
+          paddingTop: isMobile ? '25dvh' : '15dvh',
         }}
       >
         <img
