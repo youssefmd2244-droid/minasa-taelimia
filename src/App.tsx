@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Settings, Search as SearchIcon, BookOpen, Share2, ArrowRight, X } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
@@ -12,7 +12,11 @@ import SearchOverlay from './components/SearchOverlay';
 import SectionsExplorer from './components/SectionsExplorer';
 import HeroCarousel from './components/landing/HeroCarousel';
 import AcademyShowcase from './components/landing/AcademyShowcase';
-import AdminDashboard from './components/admin/AdminDashboard';
+// AdminDashboard (~120KB) كان يتم استيراده بشكل مباشر (static import)، وده
+// معناه إن كل زائر عادي للموقع كان بيحمّل وبيفسّر (parse) كل كود لوحة
+// التحكم دي جوه الـ bundle الرئيسي، حتى لو مادخلش /admin خالص طول عمره.
+// دلوقتي بقى lazy: هيتحمّل فقط لما showAdmin تبقى true فعلاً.
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
 import DeveloperCredit from './components/landing/DeveloperCredit';
 import StudentComments from './components/landing/StudentComments';
 import GlobalPresence from './components/landing/GlobalPresence';
@@ -304,11 +308,13 @@ function AppContent() {
   if (showAdmin) {
     return (
       <div dir={dir} style={{ position: 'fixed', inset: 0, zIndex: 9999, overflowY: 'auto', background: '#0a0a1a' }}>
-        <AdminDashboard
-          currentPassword={adminPassword}
-          onPasswordChange={setAdminPassword}
-          onExit={exitAdmin}
-        />
+        <Suspense fallback={<div style={{ padding: 40, color: '#fff', textAlign: 'center' }}>...جاري التحميل</div>}>
+          <AdminDashboard
+            currentPassword={adminPassword}
+            onPasswordChange={setAdminPassword}
+            onExit={exitAdmin}
+          />
+        </Suspense>
       </div>
     );
   }
