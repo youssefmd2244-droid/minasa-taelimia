@@ -18,13 +18,36 @@ const IMAGES = [
 
 const TOTAL = IMAGES.length;
 
-// Preload images on mount
-const preloadImages = () => {
-  IMAGES.forEach((item) => {
-    const img = new Image();
-    img.src = item.src;
-  });
-};
+function preloadImage(src: string) {
+  const img = new Image();
+  img.src = src;
+}
+
+// ── إصلاح أداء: سبب رئيسي في "بطء فتح التطبيق" ──────────────────────────
+// preloadImages القديمة كانت بتحمّل الـ 11 صورة كلهم (~1.5 ميجابايت WebP)
+// فورًا أول ما HeroCarousel يتركّب — وده بالظبط أول شيء بيحصل بعد ما
+// splash الافتتاح يخلص. على شبكة موبايل عادية ده معناه انفجار طلبات شبكة
+// + فك تشفير (decode) 11 صورة كبيرة في نفس اللحظة، تتنافس مع أول رسم
+// فعلي للصفحة على نفس الجهاز — وده اللي بيحس المستخدم إنه "بطء/تهنيج"
+// في أول ثانية أو اتنين من فتح التطبيق.
+// الحل: نحمّل بس الصورة الحالية + اللي بعدها فورًا (المطلوبين فعلاً على
+// طول)، والباقي بيتحمّل تباعًا في وقت الفراغ (requestIdleCallback) بعد
+// ما الصفحة تستقر، مع تأخير بسيط بين كل واحدة عشان ميحصلش نفس الانفجار
+// بس متأخر شوية.
+function preloadRemainingImagesWhenIdle(startIndex: number) {
+  const rest = IMAGES.filter((_, i) => i !== startIndex && i !== (startIndex + 1) % TOTAL);
+  const run = () => {
+    rest.forEach((item, i) => {
+      setTimeout(() => preloadImage(item.src), i * 150);
+    });
+  };
+  const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void };
+  if (typeof w.requestIdleCallback === 'function') {
+    w.requestIdleCallback(run, { timeout: 3000 });
+  } else {
+    setTimeout(run, 2000);
+  }
+}
 
 /*
   ── DIAGNOSTIC BUILD ──
@@ -52,7 +75,11 @@ export default function HeroCarousel() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
   useEffect(() => {
-    preloadImages();
+    // فقط الصورة الحالية + التالية فورًا؛ الباقي بيتحمّل تباعًا لما
+    // المتصفح يبقى فاضي (انظر تعليق preloadRemainingImagesWhenIdle فوق).
+    preloadImage(IMAGES[0].src);
+    preloadImage(IMAGES[1 % TOTAL].src);
+    preloadRemainingImagesWhenIdle(0);
     const handleResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -62,9 +89,15 @@ export default function HeroCarousel() {
     (direction: 'next' | 'prev') => {
       if (isAnimating) return;
       setIsAnimating(true);
-      setActiveIndex((prev) =>
-        direction === 'next' ? (prev + 1) % TOTAL : (prev + TOTAL - 1) % TOTAL
-      );
+      setActiveIndex((prev) => {
+        const next = direction === 'next' ? (prev + 1) % TOTAL : (prev + TOTAL - 1) % TOTAL;
+        // نضمن إن الصورة اللي بعد التالية (سواء المستخدم مستمر يضغط next
+        // أو prev) تبقى محمّلة مسبقًا، عشان التنقل يفضل سلس من غير ما
+        // نضطر نرجع نحمّل كل الصور مرة واحدة تاني.
+        preloadImage(IMAGES[(next + 1) % TOTAL].src);
+        preloadImage(IMAGES[(next + TOTAL - 1) % TOTAL].src);
+        return next;
+      });
       setTimeout(() => setIsAnimating(false), 500);
     },
     [isAnimating]
