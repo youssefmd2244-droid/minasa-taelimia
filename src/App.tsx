@@ -10,6 +10,7 @@ import LanguageSwitcher from './i18n/LanguageSwitcher';
 import IntroSplash from './components/IntroSplash';
 import SearchOverlay from './components/SearchOverlay';
 import SectionsExplorer from './components/SectionsExplorer';
+import LazySection from './components/LazySection';
 import HeroCarousel from './components/landing/HeroCarousel';
 import AcademyShowcase from './components/landing/AcademyShowcase';
 // AdminDashboard (~120KB) كان يتم استيراده بشكل مباشر (static import)، وده
@@ -403,20 +404,36 @@ function AppContent() {
       {/* ─── Landing Sections ─── */}
       <div className="bottom-nav-safe">
         <HeroCarousel />
-        <AcademyShowcase />
+
+        {/* من هنا لتحت: كل قسم بيتحمّل بس لما يقرب يظهر على الشاشة
+            (LazySection) — بدل ما كل الأقسام دي تتركّب مع بعض أول ما
+            التطبيق يفتح وتسبب البطء/التهنيج في أول لحظة. */}
+        <LazySection minHeight={600}>
+          <AcademyShowcase />
+        </LazySection>
 
         {/* معرض الكورسات الدائري ثلاثي الأبعاد */}
-        <CoursesGallerySection />
+        <LazySection minHeight={520}>
+          <CoursesGallerySection />
+        </LazySection>
 
         {/* دروس مختارة — الميزة الفعلية لتنزيل الملفات (تظهر فقط للعناصر
             التي يفعّلها المعلّم من لوحة الإدارة، عبر useContent الحقيقي) */}
-        <LessonsPreviewSection />
+        <LazySection minHeight={300}>
+          <LessonsPreviewSection />
+        </LazySection>
 
         {/* الانتشار الجغرافي مع الكرة الأرضية */}
-        <GlobalPresence />
+        <LazySection minHeight={500}>
+          <GlobalPresence />
+        </LazySection>
 
-        <StudentComments />
-        <DeveloperCredit />
+        <LazySection minHeight={400}>
+          <StudentComments />
+        </LazySection>
+        <LazySection minHeight={200}>
+          <DeveloperCredit />
+        </LazySection>
 
         {/* Footer */}
         <footer style={{ background: '#050510', padding: '60px 20px 40px' }}>
