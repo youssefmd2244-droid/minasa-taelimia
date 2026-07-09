@@ -133,6 +133,27 @@ body {
   .glass-premium::before { animation: none; display: none; }
   .tilt-3d { transform: none !important; }
 }
+
+/* ===== إصلاح أداء أساسي =====
+   backdrop-filter (الزجاج المموّه) وأنيميشن البريق المستمر وميل الـ 3D
+   كلهم عمليات تركيب رسومية تقيلة على المعالج الرسومي (GPU compositing).
+   على أجهزة اللمس (كل الموبايلات والتابلت) ده كان بيسبب بطء ولاج حقيقي
+   في التطبيق كله، مش بس في المكان اللي التأثير موجود فيه — لأن كل
+   عملية سكرول بتضطر المتصفح يعيد حساب الـ blur لحظة بلحظة.
+   الحل: نوقف الزجاج المموّه والبريق والميل تمامًا على أجهزة اللمس،
+   ونسيب بس خلفية داكنة شبه شفافة عادية (رخيصة جدًا على المعالج) —
+   ونفضّل الشكل الكامل بس للماوس/الديسكتوب فين التكلفة مش موجودة أصلاً.
+   نفس بالظبط الحل المُجرَّب والموثّق في circular-gallery.tsx. */
+@media (pointer: coarse) {
+  .liquid-glass, .liquid-glass-strong, .glass-premium, .admin-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(16,16,28,0.86) !important;
+  }
+  .glass-premium::before { animation: none !important; display: none !important; }
+  .glass-premium { transition: none !important; }
+  .tilt-3d { transform: none !important; transition: none !important; will-change: auto !important; }
+}
 /* أجهزة ضعيفة/متصفحات مش داعمة blur خالص: نسيب اللون شبه الشفاف بس من غيره،
    عشان يفضل واضح ومقروء بدل خلفية غير متناسقة. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
