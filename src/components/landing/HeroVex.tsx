@@ -48,7 +48,7 @@ export default function HeroVex() {
   }, []);
 
   return (
-    <section style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }} dir={dir}>
+    <section className="vh-full-exact" style={{ position: 'relative', width: '100%', overflow: 'hidden', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }} dir={dir}>
       {/* Background */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 0, background: 'linear-gradient(135deg, #0a0a1a 0%, #0d1b2a 40%, #0a1628 100%)', transition: 'opacity 1s ease' }}>
         <img src="https://images.pexels.com/photos/9159039/pexels-photo-9159039.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: bgLoaded ? 0.35 : 0, transition: 'opacity 1.2s ease' }} />
