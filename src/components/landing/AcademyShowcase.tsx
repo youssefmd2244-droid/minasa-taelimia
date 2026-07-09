@@ -9,6 +9,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { useContent } from '../../hooks/useContent';
+import { useSiteText, useSiteImage } from '../../hooks/useSiteContent';
 
 // ========== SECTION 1: Academy Hero ==========
 function AcademyHero() {
@@ -386,8 +387,10 @@ function TeachingPhilosophy() {
             }}
           >
             <img
-              src="https://images.pexels.com/photos/7777691/pexels-photo-7777691.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=600&w=900"
+              src={imageLarge}
               alt="Students studying"
+              loading="lazy"
+              decoding="async"
               style={{
                 width: '100%',
                 height: '100%',
@@ -397,10 +400,7 @@ function TeachingPhilosophy() {
           </div>
 
           {/* Two smaller images */}
-          {[
-            'https://images.pexels.com/photos/9159039/pexels-photo-9159039.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=400&w=600',
-            'https://images.pexels.com/photos/8926887/pexels-photo-8926887.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=400&w=600',
-          ].map((src, i) => (
+          {[imageSmall1, imageSmall2].map((src, i) => (
             <div
               key={i}
               style={{
@@ -413,6 +413,8 @@ function TeachingPhilosophy() {
               <img
                 src={src}
                 alt="Classroom"
+                loading="lazy"
+                decoding="async"
                 style={{
                   width: '100%',
                   height: '100%',
@@ -443,6 +445,13 @@ function FeaturedCourses() {
   const [hover1, setHover1] = useState(false);
   const [hover2, setHover2] = useState(false);
   const { items } = useContent();
+  const badgeLabel = useSiteText('academy.badgeLabel', 'أفضل تقييمات الطلاب');
+  const heading = useSiteText('academy.heading', 'محتوى مميز');
+  const ctaLabel = useSiteText('academy.ctaLabel', 'عرض كل الأقسام');
+  const emptyTitle = useSiteText('academy.emptyTitle', 'مفيش محتوى مميز لسه');
+  const imageLarge = useSiteImage('academy.imageLarge', 'https://images.pexels.com/photos/7777691/pexels-photo-7777691.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=600&w=900');
+  const imageSmall1 = useSiteImage('academy.imageSmall1', 'https://images.pexels.com/photos/9159039/pexels-photo-9159039.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=400&w=600');
+  const imageSmall2 = useSiteImage('academy.imageSmall2', 'https://images.pexels.com/photos/8926887/pexels-photo-8926887.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=400&w=600');
 
   // بيعرض أول عنصرين اتحددوا "مميز" فعلاً من لوحة التحكم — مش محتوى
   // وهمي ثابت. لو الأدمن لسه مامختارش أي حاجة مميزة، بيظهر بدل كده
@@ -463,7 +472,7 @@ function FeaturedCourses() {
       }))
     : [
         {
-          id: -1, title: 'مفيش محتوى مميز لسه', tag: 'من لوحة التحكم',
+          id: -1, title: emptyTitle, tag: 'من لوحة التحكم',
           description: 'حدد أي عنصر بعلامة "مميز" (⭐) من تبويب المحتوى في لوحة التحكم، وهيظهر هنا تلقائيًا.',
           ...FEATURED_VISUAL_THEMES[0], hovered: hover1, setHovered: setHover1,
         },
@@ -519,7 +528,7 @@ function FeaturedCourses() {
               <span
                 style={{ fontSize: '13px', color: '#555', fontWeight: 500 }}
               >
-                أفضل تقييمات الطلاب
+                {badgeLabel}
               </span>
             </div>
 
@@ -533,7 +542,7 @@ function FeaturedCourses() {
                 letterSpacing: '-0.04em',
               }}
             >
-              محتوى مميز
+              {heading}
             </h2>
           </div>
 
@@ -559,7 +568,7 @@ function FeaturedCourses() {
               (e.currentTarget as HTMLAnchorElement).style.background = '#0a0a0a';
             }}
           >
-            عرض كل الأقسام
+            {ctaLabel}
             <ArrowRight size={14} style={{ transform: 'scaleX(-1)' }} />
           </a>
         </div>
