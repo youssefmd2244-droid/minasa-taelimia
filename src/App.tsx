@@ -25,6 +25,7 @@ import CoursesGallerySection from './components/landing/CoursesGallerySection';
 import LessonsPreviewSection from './components/landing/LessonsPreviewSection';
 import { useScrollReveal } from './hooks/useScrollReveal';
 import { useAppBranding } from './hooks/useAppBranding';
+import { useSiteText } from './hooks/useSiteContent';
 
 // ===== Password gate inline =====
 const ADMIN_PASS = '20042007';
@@ -107,6 +108,8 @@ function AppContent() {
   const [navScrolled, setNavScrolled] = useState(false);
   const [adminPassword, setAdminPassword] = useState(ADMIN_PASS);
   const gearRef = useRef<HTMLButtonElement>(null);
+  const footerEmail = useSiteText('footer.email', 'info@eduverse.com');
+  const footerPhone = useSiteText('footer.phone', '+20 100 000 0000');
 
   // Scroll reveal
   useScrollReveal();
@@ -457,7 +460,7 @@ function AppContent() {
               </div>
               <div>
                 <h4 style={{ color: 'white', fontWeight: 700, marginBottom: '16px' }}>{t('footer_contact')}</h4>
-                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', lineHeight: 1.9 }}>info@eduverse.com<br />+20 100 000 0000</p>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', lineHeight: 1.9 }}>{footerEmail}<br />{footerPhone}</p>
               </div>
             </div>
             <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
