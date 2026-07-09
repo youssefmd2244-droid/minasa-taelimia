@@ -22,12 +22,14 @@ import {
   Archive,
   Star,
   Music,
+  Play,
 } from 'lucide-react';
 import { useContent } from '../../hooks/useContent';
 import type { ContentType } from '../../lib/supabaseClient';
 import ZoomableImage from '../ui/ZoomableImage';
 import VideoPlayer from '../ui/VideoPlayer';
 import { useTilt3D } from '../../hooks/useTilt3D';
+import { useVideoThumbnail } from '../../hooks/useVideoThumbnail';
 
 const TYPE_META: Record<ContentType, { icon: typeof FileText; color: string; label: string }> = {
   video: { icon: Video, color: '#6EB5FF', label: 'فيديو' },
@@ -106,6 +108,23 @@ function LessonCard({ item, index, downloadingId, onDownload }: LessonCardProps)
   const Icon = meta.icon;
   const hasMediaPreview = (item.type === 'image' || item.type === 'video') && !!item.file_url;
 
+  /**
+   * القاعدة اللي كانت ناقصة وبتسبب البطء: قبل كده كنا بنركّب عنصر
+   * `<video>` حقيقي (جوه VideoPlayer) لكل فيديو في القايمة فورًا —
+   * يعني لو الصفحة فيها 10 فيديوهات، المتصفح كان بيحاول يفتح 10
+   * اتصالات شبكة لكل الفيديوهات في نفس اللحظة عشان يجيب الميتاداتا/أول
+   * فريم، حتى لو المستخدم لسه ماوصلش لهم بالسكرول. ده اللي كان بيظهر
+   * كصورة رمادية فاضية/بطء ظاهر في القايمة.
+   *
+   * الحل: نعرض بس صورة غلاف خفيفة (poster_url لو موجودة، أو التقاط فريم
+   * حي كـ fallback بس لو مفيش poster) — ومنركبش <video> حقيقي إلا لما
+   * المستخدم يدوس تشغيل فعليًا.
+   */
+  const [videoActivated, setVideoActivated] = useState(false);
+  const needsLiveThumb = item.type === 'video' && !item.poster_url && !videoActivated;
+  const liveThumb = useVideoThumbnail(needsLiveThumb ? item.file_url : null);
+  const videoPosterSrc = item.poster_url || liveThumb || undefined;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -140,8 +159,38 @@ function LessonCard({ item, index, downloadingId, onDownload }: LessonCardProps)
                 alt={item.title}
                 style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', display: 'block' }}
               />
+            ) : videoActivated ? (
+              <VideoPlayer src={item.file_url as string} poster={item.poster_url || undefined} autoPlay maxHeight="260px" borderRadius="10px" />
             ) : (
-              <VideoPlayer src={item.file_url as string} poster={item.poster_url || undefined} maxHeight="260px" borderRadius="10px" />
+              <button
+                onClick={() => setVideoActivated(true)}
+                aria-label="تشغيل الفيديو"
+                style={{
+                  position: 'relative', width: '100%', height: '180px', border: 'none', padding: 0,
+                  cursor: 'pointer', background: videoPosterSrc ? '#000' : 'linear-gradient(135deg, rgba(110,181,255,0.22), rgba(20,20,30,0.6))',
+                  display: 'block',
+                }}
+              >
+                {videoPosterSrc && (
+                  <img
+                    src={videoPosterSrc}
+                    alt={item.title}
+                    loading="lazy"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                )}
+                <div style={{
+                  position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(0,0,0,0.25)',
+                }}>
+                  <div style={{
+                    width: '46px', height: '46px', borderRadius: '50%', background: 'rgba(255,255,255,0.18)',
+                    backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Play size={20} color="white" fill="white" />
+                  </div>
+                </div>
+              </button>
             )}
           </div>
         )}
