@@ -117,11 +117,29 @@ jobs:
           org.gradle.daemon=false
           EOF
 
+      - name: Increase Gradle network timeout (mitigate transient 504s)
+        run: |
+          PROPS="android/gradle/wrapper/gradle-wrapper.properties"
+          if [ -f "$PROPS" ] && ! grep -q "networkTimeout" "$PROPS"; then
+            echo "networkTimeout=60000" >> "$PROPS"
+          fi
+
       - name: Build Debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          n=0
+          max=5
+          until [ "$n" -ge "$max" ]; do
+            if ./gradlew assembleDebug --no-daemon --stacktrace; then
+              exit 0
+            fi
+            n=$((n + 1))
+            echo "⚠️ Gradle build attempt $n/$max failed (likely a transient network/download error, e.g. HTTP 504 while fetching the Gradle distribution). Retrying in 20s..."
+            sleep 20
+          done
+          echo "❌ Gradle build failed after $max attempts."
+          exit 1
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
