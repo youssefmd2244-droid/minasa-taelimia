@@ -24,6 +24,8 @@ export default function ZoomableImage({ src, alt = '', className, style }: Zooma
         className={className}
         style={{ cursor: 'zoom-in', ...style }}
         onClick={() => setOpen(true)}
+        loading="lazy"
+        decoding="async"
       />
       {open && (
         <div
@@ -66,6 +68,7 @@ export default function ZoomableImage({ src, alt = '', className, style }: Zooma
             src={src}
             alt={alt}
             onClick={(e) => e.stopPropagation()}
+            decoding="async"
             style={{ maxWidth: '100%', maxHeight: '92vh', objectFit: 'contain', borderRadius: '10px' }}
           />
         </div>
