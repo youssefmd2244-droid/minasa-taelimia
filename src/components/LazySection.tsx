@@ -16,8 +16,15 @@
  * نفس المساحة بالظبط (min-height) عشان مفيش "قفزة" في السكرول، لكن
  * الكود الفعلي بتاعها (والطلبات/الرسم اللي جواه) ميتنفذش إلا لما
  * IntersectionObserver يقول إنها قربت تدخل الشاشة (rootMargin موجب).
+ *
+ * ملاحظة: الأقسام اللي بتتمرر كـ children هنا بقت في الغالب
+ * lazy(() => import(...)) حقيقية (مش استيراد ثابت)، عشان الكود نفسه
+ * ميتنزلش إلا لما يتطلب فعلاً. لأن lazy() محتاج Suspense boundary فوقه،
+ * الكومبوننت ده بقى بيحيط الـ children بـ <Suspense> جوّاه تلقائياً،
+ * بنفس ارتفاع الـ placeholder (minHeight) كـ fallback، فمفيش قفزة في
+ * السكرول برضه أثناء تحميل الـ chunk نفسه.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface LazySectionProps {
   children: ReactNode;
@@ -64,5 +71,9 @@ export default function LazySection({
     return <div ref={ref} style={{ minHeight }} aria-hidden="true" />;
   }
 
-  return <>{children}</>;
+  return (
+    <Suspense fallback={<div style={{ minHeight }} aria-hidden="true" />}>
+      {children}
+    </Suspense>
+  );
 }
