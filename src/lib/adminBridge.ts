@@ -235,6 +235,29 @@ export async function pullRemoteAppData(): Promise<RawAdminData | null> {
   return null;
 }
 
+export const SYNC_STATUS_EVENT = 'eduverse-sync-status';
+export type SyncStatusDetail = { ok: boolean; source: 'supabase' | 'github'; message?: string };
+
+function notifySyncStatus(detail: SyncStatusDetail) {
+  try {
+    window.dispatchEvent(new CustomEvent<SyncStatusDetail>(SYNC_STATUS_EVENT, { detail }));
+  } catch {
+    // بيئة بدون window — تجاهل
+  }
+}
+
+/** يشترك في حالة آخر مزامنة خلفية (تلقائية) — عشان لوحة الإدارة تقدر
+ *  تبيّن للأدمن إن آخر تغيير اتحفظ فعلاً أو لأ، حتى لو ما ضغطش "حفظ
+ *  الآن" بنفسه. قبل كده الحفظ التلقائي كان fire-and-forget بالكامل
+ *  (`void pushToGithub(data)`) — أي فشل (زي تعارض sha) كان بيروح في
+ *  console.error بس، والأدمن يفتكر إن كل حاجة اتحفظت وهي فعليًا لأ،
+ *  وده اللي كان بيخلي المستخدمين العاديين ميشوفوش آخر تعديلات. */
+export function subscribeSyncStatus(cb: (detail: SyncStatusDetail) => void): () => void {
+  const handler = (e: Event) => cb((e as CustomEvent<SyncStatusDetail>).detail);
+  window.addEventListener(SYNC_STATUS_EVENT, handler);
+  return () => window.removeEventListener(SYNC_STATUS_EVENT, handler);
+}
+
 let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** يرفع نسخة جديدة من بيانات لوحة الإدارة (Supabase و/أو GitHub حسب مصدر المحتوى المختار)، مع debounce بسيط لتقليل الطلبات. */
@@ -243,10 +266,18 @@ export function pushAppData(data: RawAdminData): void {
   if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
   pushDebounceTimer = setTimeout(() => {
     if ((source === 'supabase' || source === 'both') && isSupabaseConfigured && supabase) {
-      void supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data });
+      void supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data }).then(({ error }) => {
+        notifySyncStatus({ ok: !error, source: 'supabase', message: error?.message });
+      });
     }
     if ((source === 'github' || source === 'both') && isGithubConfigured()) {
-      void pushToGithub(data);
+      // pushToGithub بنفسه بيدخل في طابور واحد للريبو (شوف githubStorage.ts)
+      // فمفيش خطر تعارض حتى لو الحفظ التلقائي ده اشتغل في نفس اللحظة
+      // اللي فيها المستخدم ضاغط "احفظ الآن" يدويًا.
+      void pushToGithub(data).then((result) => {
+        if (!result.ok) console.error('[adminBridge] pushAppData (github, background) failed:', result.message);
+        notifySyncStatus({ ok: result.ok, source: 'github', message: result.message });
+      });
     }
   }, 500);
 }
