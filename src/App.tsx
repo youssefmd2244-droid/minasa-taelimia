@@ -375,40 +375,47 @@ function AppContent() {
             </div>
           </div>
           <div className="nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={() => setShowSections(true)}
-              title={t('sections_open')}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
-            >
-              <BookOpen size={16} />
-            </button>
-            {/* زرار تكبير/تصغير التطبيق — اتنقل هنا جنب زرار الأقسام
-                فوق في الـ nav بدل ما يكون عائم لوحده تحت في الشاشة. */}
-            <ZoomControls variant="inline" />
-            <button
-              onClick={handleShareApp}
-              title={t('share_app')}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
-            >
-              <Share2 size={16} />
-            </button>
-            <button
-              onClick={() => setShowSearch(true)}
-              title={t('search_open')}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
-            >
-              <SearchIcon size={16} />
-            </button>
-            <button
-              ref={gearRef}
-              onClick={() => setShowPasswordGate(true)}
-              title={t('admin_settings')}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
-            >
-              <Settings size={16} className="gear-spin" />
-            </button>
-            <LanguageSwitcher />
-            <a href="#start" className="nav-start-badge" style={{ padding: '8px 20px', borderRadius: '999px', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', fontWeight: 600, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.12)', transition: 'background 200ms', whiteSpace: 'nowrap' }}
+            {/* صف الأيقونات كلها (الأقسام/الزوم/المشاركة/البحث/الإعدادات/
+                اللغة) في div لوحده وnowrap عشان يفضلوا جنب بعض في صف
+                واحد دايمًا، وشارة "ابدأ مجاناً" هي بس اللي تنزل تحت لو
+                المساحة ضاقت (شوف .nav-icon-row / .nav-start-badge في
+                index.css). */}
+            <div className="nav-icon-row">
+              <button
+                onClick={() => setShowSections(true)}
+                title={t('sections_open')}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <BookOpen size={16} />
+              </button>
+              {/* زرار تكبير/تصغير التطبيق — اتنقل هنا جنب زرار الأقسام
+                  فوق في الـ nav بدل ما يكون عائم لوحده تحت في الشاشة. */}
+              <ZoomControls variant="inline" />
+              <button
+                onClick={handleShareApp}
+                title={t('share_app')}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <Share2 size={16} />
+              </button>
+              <button
+                onClick={() => setShowSearch(true)}
+                title={t('search_open')}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <SearchIcon size={16} />
+              </button>
+              <button
+                ref={gearRef}
+                onClick={() => setShowPasswordGate(true)}
+                title={t('admin_settings')}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <Settings size={16} className="gear-spin" />
+              </button>
+              <LanguageSwitcher />
+            </div>
+            <a href="#start" className="nav-start-badge" style={{ borderRadius: '999px', background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 600, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.12)', transition: 'background 200ms', whiteSpace: 'nowrap' }}
               onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.18)')}
               onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.1)')}>
               {t('nav_start')}
