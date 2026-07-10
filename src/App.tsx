@@ -382,6 +382,9 @@ function AppContent() {
             >
               <BookOpen size={16} />
             </button>
+            {/* زرار تكبير/تصغير التطبيق — اتنقل هنا جنب زرار الأقسام
+                فوق في الـ nav بدل ما يكون عائم لوحده تحت في الشاشة. */}
+            <ZoomControls variant="inline" />
             <button
               onClick={handleShareApp}
               title={t('share_app')}
@@ -488,10 +491,9 @@ export default function App() {
   return (
     <LanguageProvider>
       <AppContent />
-      {/* عائم فوق كل شاشة (الصفحة الرئيسية + الأدمن + الإعدادات) —
-          مستوى التكبير بيتحفظ في localStorage عبر useAppZoom جوه
-          الكومبوننت نفسه، فمش محتاج نمرره كـ prop لأي حتة. */}
-      <ZoomControls />
+      {/* الزرار العائم اتشال من هنا — بقى موجود جوه الـ nav نفسه (جنب
+          زرار الأقسام) عشان يبان في كل شاشات التطبيق برضه (الـ nav
+          فوق فيه position: fixed) بس في المكان اللي المستخدم طلبه. */}
     </LanguageProvider>
   );
 }
