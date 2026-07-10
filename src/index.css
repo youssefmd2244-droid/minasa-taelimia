@@ -415,23 +415,47 @@ body {
 /* ===== Responsive top nav ===== */
 /* على الشاشات الضيقة، الأيقونات + شارة "ابدأ مجاناً" كانوا بياخدوا مساحة
    أكبر من عرض الشاشة، فالشارة كانت بتتقطع من حافة الشاشة. الحل الأضمن:
-   نخلي صف الأزرار يلف (wrap) بحيث الشارة تنزل تحت في سطر لوحدها بدل ما
-   تتقطع، مهما كان عرض الشاشة. */
+   نخلي شارة "ابدأ مجاناً" تنزل تحت صف الأيقونات في سطر لوحدها، وصف
+   الأيقونات نفسه (BookOpen/Zoom/Share/Search/Settings/اللغة) يفضل صف
+   واحد جنب بعض من غير ما يلف، عن طريق تصغير الأيقونات والمسافات بينهم
+   بدل ما نسيبهم يتفرقوا في أكتر من سطر. */
+.nav-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 8px;
+}
+/* صف الأيقونات نفسه — عنصر واحد بيلف الأيقونات كلها عشان يفضل مضمون
+   إنه صف واحد متلاصق حتى لو المساحة ضاقت، والشارة بس هي اللي تنزل تحت. */
+.nav-icon-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+.nav-start-badge {
+  padding: 6px 16px;
+  font-size: 12px;
+}
 @media (max-width: 480px) {
   .nav-actions {
-    flex-wrap: wrap !important;
-    justify-content: flex-end !important;
-    row-gap: 8px !important;
     gap: 6px !important;
     max-width: 100%;
+  }
+  .nav-icon-row {
+    gap: 4px !important;
+  }
+  .nav-icon-row button,
+  .nav-icon-row .w-8 {
+    width: 28px !important;
+    height: 28px !important;
   }
   .nav-start-badge {
     flex-basis: 100%;
     text-align: center;
-    padding: 7px 16px !important;
-    font-size: 12px !important;
+    padding: 6px 14px !important;
+    font-size: 11px !important;
   }
 }
 @media (max-width: 360px) {
-  .nav-actions { gap: 4px !important; }
+  .nav-icon-row { gap: 2px !important; }
 }
