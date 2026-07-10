@@ -19,6 +19,7 @@
  * لتفادي استهلاك GPU غير الضروري في الأقسام البعيدة عن مجال الرؤية.
  */
 import { useEffect, useRef } from 'react';
+import { getDevicePerfTier, getMaxDprForTier, getFrameSkipForTier } from '../../lib/devicePerf';
 
 const VERTEX_SHADER = `
   attribute vec2 position;
@@ -27,8 +28,13 @@ const VERTEX_SHADER = `
   }
 `;
 
+// OCTAVE_COUNT بيتحدد وقت التشغيل (اتشال منها القيمة الثابتة 5) حسب
+// فئة أداء الجهاز — 5 على الأجهزة القوية، أقل على الضعيفة، لأن كل
+// "octave" في fbm معناه تكرار كامل لدالة noise (4 هاش) على كل بكسل في
+// الشاشة، ده أكبر تكلفة فعلية في الشيدر ده.
 const FRAGMENT_SHADER = `
   precision highp float;
+  #define OCTAVE_COUNT __OCTAVE_COUNT__
   uniform vec2 u_resolution;
   uniform float u_time;
   uniform vec2 u_mouse;
@@ -56,7 +62,7 @@ const FRAGMENT_SHADER = `
   float fbm(vec2 p) {
     float value = 0.0;
     float amplitude = 0.5;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < OCTAVE_COUNT; i++) {
       value += amplitude * noise(p);
       p *= 2.0;
       amplitude *= 0.5;
@@ -149,7 +155,13 @@ export default function KnowledgeFieldShader({
     }
 
     const vs = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-    const fs = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+    // بنحدد عدد الـ octaves في الـ noise حسب فئة أداء الجهاز قبل ما
+    // نجمع الشيدر: 3 على الأجهزة الضعيفة (توفير حقيقي في شغل GPU لكل
+    // بكسل)، 4 على المتوسطة، 5 (زي الأصل) على القوية.
+    const tier = getDevicePerfTier();
+    const octaveCount = tier === 'low' ? 3 : tier === 'mid' ? 4 : 5;
+    const fragmentShaderSource = FRAGMENT_SHADER.replace('__OCTAVE_COUNT__', String(octaveCount));
+    const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
     if (!vs || !fs) return;
 
     const program = gl.createProgram();
@@ -186,7 +198,10 @@ export default function KnowledgeFieldShader({
 
     function resize() {
       if (!canvas) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap DPR for perf
+      // كان الحد الأقصى لـ DPR ثابت (2) لكل الأجهزة. دلوقتي بيتحدد حسب
+      // فئة الجهاز: 1 على الضعيف (أقل عدد بكسل يترسم = أقل شغل)، حتى
+      // 2 على القوي (زي الأصل بالظبط).
+      const dpr = Math.min(window.devicePixelRatio || 1, getMaxDprForTier(tier));
       const { clientWidth, clientHeight } = canvas;
       canvas.width = clientWidth * dpr;
       canvas.height = clientHeight * dpr;
@@ -216,10 +231,17 @@ export default function KnowledgeFieldShader({
     );
     intersectionObserver.observe(canvas);
 
+    // على الأجهزة الضعيفة بنرسم كل فريم تاني بس (frameSkip = 2) — نص
+    // معدل الفريم مش محسوس بصريًا في تأثير خلفية بطيء زي ده، لكنه
+    // بيوفر نص شغل الـ GPU فعليًا.
+    const frameSkip = getFrameSkipForTier(tier);
+    let frameCounter = 0;
     const start = performance.now();
     function render() {
       rafRef.current = requestAnimationFrame(render);
       if (!visibleRef.current) return; // skip GPU work off-screen
+      frameCounter++;
+      if (frameCounter % frameSkip !== 0) return;
       const elapsed = (performance.now() - start) / 1000;
       gl!.uniform1f(u_time, elapsed);
       gl!.uniform2f(u_mouse, mouseRef.current.x, mouseRef.current.y);
