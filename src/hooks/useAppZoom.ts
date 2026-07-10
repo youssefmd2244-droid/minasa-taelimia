@@ -9,8 +9,14 @@
 import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'eduverse_app_zoom_level';
-const MIN_ZOOM = 0.8;
-const MAX_ZOOM = 1.5;
+// المدى كان قبل كده من 80% لـ 150%. اتوسّع دلوقتي لـ 10%–1000% زي
+// المطلوب بالظبط. سبنا الحد الأدنى الحقيقي 10% مش صفر تمامًا: عند 0%
+// كل عنصر في الشاشة بيبقى مقاسه صفر فعليًا (مفيش حاجة تتلمس ولا
+// تتقفل بيها الشاشة تاني)، يعني التطبيق هيقفل نفسه على نفسه من غير
+// رجعة. 10% لسه صغير جدًا (يقرب يبقى نقطة) لكن بيسيب زرار "استعادة
+// الحجم الافتراضي" قابل للنقر عشان ترجع تكبّر تاني.
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 10;
 const STEP = 0.1;
 const DEFAULT_ZOOM = 1;
 
@@ -56,13 +62,22 @@ export function useAppZoom() {
     }
   }, []);
 
-  const zoomIn = useCallback(() => setZoom(zoom + STEP), [zoom, setZoom]);
-  const zoomOut = useCallback(() => setZoom(zoom - STEP), [zoom, setZoom]);
+  // المدى بقى كبير جدًا (10%–1000%)، فخطوة ثابتة 10% كانت هتاخد ~99
+  // ضغطة عشان توصل من الأول للآخر. بدّلناها بخطوة "نسبية" (10% من
+  // القيمة الحالية، بحد أدنى STEP الأصلية) عشان زرار +/- يفضل مفيد في
+  // كل المدى: خطوات صغيرة ودقيقة حوالين 100%، وقفزات أكبر كل ما نبعد.
+  const dynamicStep = useCallback((value: number) => Math.max(STEP, Math.round(value * 0.1 * 10) / 10), []);
+
+  const zoomIn = useCallback(() => setZoom(zoom + dynamicStep(zoom)), [zoom, setZoom, dynamicStep]);
+  const zoomOut = useCallback(() => setZoom(zoom - dynamicStep(zoom)), [zoom, setZoom, dynamicStep]);
   const resetZoom = useCallback(() => setZoom(DEFAULT_ZOOM), [setZoom]);
 
   return {
     zoom,
     zoomPercent: Math.round(zoom * 100),
+    minZoomPercent: Math.round(MIN_ZOOM * 100),
+    maxZoomPercent: Math.round(MAX_ZOOM * 100),
+    setZoomPercent: (percent: number) => setZoom(percent / 100),
     zoomIn,
     zoomOut,
     resetZoom,
