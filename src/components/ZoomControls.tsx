@@ -1,20 +1,42 @@
 /**
- * ZoomControls — زرار تكبير/تصغير عائم صغير (زي اللي في كروم)، ظاهر في
- * كل شاشات التطبيق فوق أي محتوى. بيستخدم useAppZoom اللي بيحفظ المستوى
- * ويطبّقه على <html> كله، فالتكبير بيفضل ثابت حتى لو دخلت الأقسام أو
- * الإعدادات أو قفلت التطبيق وفتحته تاني.
+ * ZoomControls — زرار تكبير/تصغير التطبيق كله.
+ *
+ * كان قبل كده زرار عائم لوحده تحت في شمال الشاشة. دلوقتي بقى "inline"
+ * (variant الافتراضي) عشان يتحط جنب زرار الأقسام فوق في الـ nav زي ما
+ * اتطلب بالظبط — بيفتح popover صغير تحته فيه:
+ *   - زرار +/- بخطوة نسبية (مناسبة للمدى الواسع 10%–1000%)
+ *   - Slider يقدر يوصل بيه لأي نسبة في المدى كله بسحبة واحدة
+ *   - قراءة رقمية للنسبة الحالية + زرار استعادة الحجم الافتراضي (100%)
+ *
+ * لسه فيه دعم لـ variant="floating" (نفس الشكل القديم العائم) لو
+ * حبينا نرجّعه أو نستخدمه في مكان تاني بره الـ nav.
  */
 import { useState } from 'react';
-import { Plus, Minus, RotateCcw } from 'lucide-react';
+import { Plus, Minus, RotateCcw, ZoomIn } from 'lucide-react';
 import { useAppZoom } from '../hooks/useAppZoom';
 
-export default function ZoomControls() {
-  const { zoomPercent, zoomIn, zoomOut, resetZoom, canZoomIn, canZoomOut, isDefault } = useAppZoom();
+type Props = {
+  variant?: 'inline' | 'floating';
+};
+
+export default function ZoomControls({ variant = 'inline' }: Props) {
+  const {
+    zoomPercent,
+    minZoomPercent,
+    maxZoomPercent,
+    setZoomPercent,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    canZoomIn,
+    canZoomOut,
+    isDefault,
+  } = useAppZoom();
   const [expanded, setExpanded] = useState(false);
 
   const btnStyle = (disabled?: boolean): React.CSSProperties => ({
-    width: 34,
-    height: 34,
+    width: 30,
+    height: 30,
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
@@ -26,108 +48,160 @@ export default function ZoomControls() {
     flexShrink: 0,
   });
 
-  return (
+  const panel = (
     <div
       style={{
-        position: 'fixed',
-        bottom: 'calc(18px + env(safe-area-inset-bottom))',
-        // ثابتة فيزيائيًا على شمال الشاشة دايمًا (مش insetInlineEnd) —
-        // عشان ما تتقلبش مكان لما اللغة تتغيّر بين عربي (RTL) وإنجليزي
-        // (LTR)، ومتفضلش سهلة اللقاء في نفس المكان دايمًا.
-        left: '16px',
-        // لازم يكون أعلى من zIndex أي عنصر تاني عائم في التطبيق (أعلى
-        // واحد موجود حاليًا كان 100000 بتاع عرض الصور المكبّرة)، عشان
-        // زرار التكبير يفضل قابل للنقر حتى فوق أي طبقة تانية.
-        zIndex: 999999,
         display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: expanded ? '6px' : '0',
-        borderRadius: '999px',
-        background: expanded ? 'rgba(10,10,20,0.85)' : 'transparent',
-        backdropFilter: expanded ? 'blur(14px)' : undefined,
-        border: expanded ? '1px solid rgba(255,255,255,0.12)' : 'none',
-        transition: 'all 200ms ease',
+        flexDirection: 'column',
+        gap: 10,
+        padding: '14px',
+        borderRadius: 16,
+        background: 'rgba(10,10,20,0.92)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+        width: 240,
       }}
     >
-      {expanded && (
-        <>
-          <button
-            type="button"
-            onClick={zoomOut}
-            disabled={!canZoomOut}
-            title="تصغير"
-            aria-label="تصغير حجم عرض التطبيق"
-            style={btnStyle(!canZoomOut)}
-          >
-            <Minus size={15} />
-          </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <button
+          type="button"
+          onClick={zoomOut}
+          disabled={!canZoomOut}
+          title="تصغير"
+          aria-label="تصغير حجم عرض التطبيق"
+          style={btnStyle(!canZoomOut)}
+        >
+          <Minus size={14} />
+        </button>
 
-          <button
-            type="button"
-            onClick={resetZoom}
-            disabled={isDefault}
-            title="استعادة الحجم الافتراضي"
-            aria-label="استعادة حجم العرض الافتراضي"
-            style={{
-              minWidth: 46,
-              height: 34,
-              padding: '0 6px',
-              borderRadius: '999px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              color: 'rgba(255,255,255,0.85)',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: isDefault ? 'default' : 'pointer',
-            }}
-          >
-            {!isDefault && <RotateCcw size={11} />}
-            {zoomPercent}%
-          </button>
+        <button
+          type="button"
+          onClick={resetZoom}
+          disabled={isDefault}
+          title="استعادة الحجم الافتراضي (100%)"
+          aria-label="استعادة حجم العرض الافتراضي"
+          style={{
+            minWidth: 64,
+            height: 30,
+            padding: '0 8px',
+            borderRadius: 999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: 'rgba(255,255,255,0.9)',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: isDefault ? 'default' : 'pointer',
+          }}
+        >
+          {!isDefault && <RotateCcw size={11} />}
+          {zoomPercent}%
+        </button>
 
-          <button
-            type="button"
-            onClick={zoomIn}
-            disabled={!canZoomIn}
-            title="تكبير"
-            aria-label="تكبير حجم عرض التطبيق"
-            style={btnStyle(!canZoomIn)}
-          >
-            <Plus size={15} />
-          </button>
-        </>
-      )}
+        <button
+          type="button"
+          onClick={zoomIn}
+          disabled={!canZoomIn}
+          title="تكبير"
+          aria-label="تكبير حجم عرض التطبيق"
+          style={btnStyle(!canZoomIn)}
+        >
+          <Plus size={14} />
+        </button>
+      </div>
 
+      {/* الـ Slider بيغطي المدى كله (10%–1000%) بسحبة واحدة، بدل ما
+          تحتاج تضغط +/- عشرات المرات عشان توصل لأقصى تكبير. */}
+      <input
+        type="range"
+        min={minZoomPercent}
+        max={maxZoomPercent}
+        step={10}
+        value={zoomPercent}
+        onChange={(e) => setZoomPercent(Number(e.target.value))}
+        aria-label="اسحب لاختيار نسبة تكبير التطبيق"
+        style={{ width: '100%', accentColor: '#F4845F', cursor: 'pointer' }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+        <span>{minZoomPercent}%</span>
+        <span>{maxZoomPercent}%</span>
+      </div>
+    </div>
+  );
+
+  if (variant === 'floating') {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 'calc(18px + env(safe-area-inset-bottom))',
+          left: '16px',
+          zIndex: 999999,
+        }}
+      >
+        {expanded && <div style={{ position: 'absolute', bottom: 48, left: 0 }}>{panel}</div>}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          title="تكبير/تصغير شاشة التطبيق"
+          aria-label="فتح أدوات تكبير وتصغير شاشة التطبيق"
+          aria-expanded={expanded}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(20,20,30,0.85)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            color: 'rgba(255,255,255,0.9)',
+            fontSize: 12,
+            fontWeight: 800,
+            cursor: 'pointer',
+            backdropFilter: 'blur(14px)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+          }}
+        >
+          {expanded ? '×' : `${zoomPercent}%`}
+        </button>
+      </div>
+    );
+  }
+
+  // variant === 'inline' — للاستخدام جوه شريط التنقل (nav) جنب زرار
+  // الأقسام. الزرار نفسه بنفس مقاس ولون أزرار الـ nav التانية (w-8 h-8)
+  // عشان يبان جزء طبيعي من نفس الصف، والـ popover بيفتح تحته.
+  return (
+    <div style={{ position: 'relative' }}>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
         title="تكبير/تصغير شاشة التطبيق"
         aria-label="فتح أدوات تكبير وتصغير شاشة التطبيق"
         aria-expanded={expanded}
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'rgba(20,20,30,0.85)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          color: 'rgba(255,255,255,0.9)',
-          fontSize: 13,
-          fontWeight: 800,
-          cursor: 'pointer',
-          backdropFilter: 'blur(14px)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-        }}
+        className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
       >
-        {expanded ? '×' : `${zoomPercent}%`}
+        <ZoomIn size={16} />
       </button>
+
+      {expanded && (
+        <>
+          {/* طبقة شفافة بتقفل الـ popover لما تدوس بره منه */}
+          <div
+            onClick={() => setExpanded(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 99998 }}
+          />
+          <div style={{ position: 'absolute', top: 'calc(100% + 10px)', insetInlineEnd: 0, zIndex: 99999 }}>
+            {panel}
+          </div>
+        </>
+      )}
     </div>
   );
 }
