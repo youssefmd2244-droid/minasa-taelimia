@@ -209,7 +209,18 @@ export default function KnowledgeFieldShader({
       gl!.uniform2f(u_resolution, canvas.width, canvas.height);
     }
 
-    const resizeObserver = new ResizeObserver(resize);
+    // لو الـ resize بيتفعّل بسبب سحب slider التكبير/التصغير، ResizeObserver
+    // بيطلق عشرات المرات في الثانية — كل مرة فيها إعادة حجم canvas +
+    // gl.viewport (شغل GPU حقيقي). بنأجل الرسم الفعلي لحد ما السحب
+    // يستقر (debounce قصير جدًا 60ms) عشان الشاشة تفضل سلسة أثناء السحب،
+    // مع أول resize فوري عادي عند التحميل.
+    let resizeDebounceId: ReturnType<typeof setTimeout> | null = null;
+    function debouncedResize() {
+      if (resizeDebounceId) clearTimeout(resizeDebounceId);
+      resizeDebounceId = setTimeout(resize, 60);
+    }
+
+    const resizeObserver = new ResizeObserver(debouncedResize);
     resizeObserver.observe(canvas);
     resize();
 
@@ -251,6 +262,7 @@ export default function KnowledgeFieldShader({
 
     return () => {
       cancelAnimationFrame(rafRef.current);
+      if (resizeDebounceId) clearTimeout(resizeDebounceId);
       window.removeEventListener('pointermove', handlePointerMove);
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
