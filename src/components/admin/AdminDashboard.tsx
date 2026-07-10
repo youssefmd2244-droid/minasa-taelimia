@@ -11,7 +11,7 @@ import { SITE_TEXT_FIELDS, SITE_IMAGE_FIELDS } from '../../lib/siteContentRegist
 import DisplayScreen from './DisplayScreen';
 import ContentSourcePanel from './ContentSourcePanel';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
-import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile } from '../../lib/adminBridge';
+import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile, subscribeSyncStatus } from '../../lib/adminBridge';
 import { EDUCATIONAL_COURSES } from '../ui/circular-gallery';
 import { writeAppDataToDevice, getStorageLocation, changeStorageLocation, STORAGE_LOCATION_LABELS, type StorageLocation } from '../../lib/deviceStorage';
 import {
@@ -1670,6 +1670,24 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveWasCloud, setSaveWasCloud] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
+
+  // الحفظ التلقائي (كل ما تضيف/تعدّل حاجة) كان بيفشل بصمت لما GitHub
+  // يرفض الكتابة (تعارض sha) — الأدمن يفتكر إن كل حاجة اتحفظت والمستخدم
+  // العادي فعليًا مبيشوفش آخر تعديل. دلوقتي بنسمع لنفس حالة "احفظ
+  // الآن" حتى من الحفظ التلقائي في الخلفية، عشان الشارة تعكس الحقيقة
+  // دايمًا مش بس لما تدوس الزرار بنفسك.
+  useEffect(() => {
+    return subscribeSyncStatus(({ ok, message }) => {
+      if (ok) {
+        setSaveStatus('saved');
+        setSaveErrorMessage(null);
+      } else {
+        setSaveStatus('error');
+        setSaveErrorMessage(message || 'فشل الحفظ التلقائي في الخلفية.');
+      }
+    });
+  }, []);
+
   const handleSaveNow = useCallback(async () => {
     setSaveStatus('saving');
     setSaveErrorMessage(null);
