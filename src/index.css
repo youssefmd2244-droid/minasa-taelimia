@@ -8,7 +8,14 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; max-width: 100%; }
-html, body { width: 100%; max-width: 100vw; overflow-x: hidden; }
+/* max-width كان 100vw قبل كده. الوحدة دي بتتحسب دايمًا من مقاس
+   الشاشة الحقيقي للجهاز، وده بيتعارض مع تكبير/تصغير التطبيق (CSS
+   zoom على <html>) لأن zoom بيغيّر المساحة "المنطقية" المتاحة
+   للـ layout، فلما تتصغّر (zoom < 1) الـ 100% بتاعة html بتبقى أكبر
+   من الـ 100vw (المقاس الحقيقي الثابت)، فـ max-width بيقصّ الفرق ده
+   وبيظهر جزء أسود فاضي على الجنب وكأن الشاشة "زاحت". استبدلنا 100vw
+   بـ 100% عشان القيمتين يفضلوا متوافقين مع بعض في أي مستوى تكبير. */
+html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
 html { scroll-behavior: auto; -webkit-font-smoothing: antialiased; height: 100%; }
 body {
   background: #0a0a0a;
@@ -22,7 +29,7 @@ body {
 /* ===== Mobile App Layout ===== */
 #root {
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
