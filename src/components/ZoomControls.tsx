@@ -31,8 +31,14 @@ export default function ZoomControls() {
       style={{
         position: 'fixed',
         bottom: 'calc(18px + env(safe-area-inset-bottom))',
-        insetInlineEnd: '16px',
-        zIndex: 10050,
+        // ثابتة فيزيائيًا على شمال الشاشة دايمًا (مش insetInlineEnd) —
+        // عشان ما تتقلبش مكان لما اللغة تتغيّر بين عربي (RTL) وإنجليزي
+        // (LTR)، ومتفضلش سهلة اللقاء في نفس المكان دايمًا.
+        left: '16px',
+        // لازم يكون أعلى من zIndex أي عنصر تاني عائم في التطبيق (أعلى
+        // واحد موجود حاليًا كان 100000 بتاع عرض الصور المكبّرة)، عشان
+        // زرار التكبير يفضل قابل للنقر حتى فوق أي طبقة تانية.
+        zIndex: 999999,
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
