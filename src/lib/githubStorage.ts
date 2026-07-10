@@ -102,17 +102,19 @@ export async function pullFromGithubRaw<T = unknown>(): Promise<T | null> {
   }
 }
 
-// ── كتابة (الأدمن بس — محتاج توكن) ──────────────────────────────────
-export interface GithubPushResult { ok: boolean; message?: string }
+// ── طابور كتابة واحد لكل الريبو ──────────────────────────────────────
+// السبب الحقيقي وراء رسالة "content.json does not match [sha]":
+// pushToGithub بيعمل GET (يجيب الـ sha الحالي) وبعدين PUT (يكتب بيه).
+// لو نداءين لـ pushToGithub اشتغلوا في نفس الوقت (مثلاً: الحفظ التلقائي
+// كل ما تضيف ملف + ضغطة "احفظ الآن" اليدوية، أو إضافة عدة ملفات ورا
+// بعض بسرعة) — الاتنين بيجيبوا نفس الـ sha القديم، الأول بينجح ويغيّر
+// الملف، والتاني يحاول يكتب بنفس الـ sha القديم فيترفض من GitHub بالظبط
+// بالرسالة دي. الحل الجذري: نضمن إن مفيش أكتر من كتابة واحدة بتحصل في
+// نفس اللحظة على الإطلاق — كل نداء بينضم لطابور وبيتنفذ بعد اللي قبله.
+let githubWriteChain: Promise<GithubPushResult> = Promise.resolve({ ok: true });
 
-export async function pushToGithub(data: unknown): Promise<GithubPushResult> {
+async function performGithubWrite(data: unknown, attempt = 1): Promise<GithubPushResult> {
   const cfg = getGithubConfig();
-  if (!cfg.owner || !cfg.repo || !cfg.path) {
-    return { ok: false, message: 'إعدادات GitHub غير مكتملة (المالك/الريبو/المسار).' };
-  }
-  if (!cfg.token) {
-    return { ok: false, message: 'محتاج GitHub Token بصلاحية Contents: Read and write علشان تقدر تنشر.' };
-  }
   const branch = cfg.branch || 'main';
   const apiUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${encodeURIComponent(cfg.path).replace(/%2F/g, '/')}`;
   const headers = {
@@ -121,9 +123,13 @@ export async function pushToGithub(data: unknown): Promise<GithubPushResult> {
     'Content-Type': 'application/json',
   };
   try {
-    // لازم نجيب الـ sha الحالي للملف (لو موجود بالفعل) عشان GitHub يقبل التحديث
+    // لازم نجيب الـ sha الحالي (لو موجود) في كل محاولة (خصوصًا محاولات
+    // إعادة المحاولة بعد تعارض) عشان نضمن إننا بنكتب فوق آخر نسخة فعلاً.
     let sha: string | undefined;
-    const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, { headers });
+    const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, {
+      headers,
+      cache: 'no-store',
+    });
     if (getRes.ok) {
       const info = await getRes.json();
       sha = info.sha;
@@ -145,12 +151,39 @@ export async function pushToGithub(data: unknown): Promise<GithubPushResult> {
     });
     if (!putRes.ok) {
       const err = await putRes.json().catch(() => ({}));
+      const isConflict = putRes.status === 409 || (putRes.status === 422 && /does not match|sha/i.test(String(err.message || '')));
+      // تعارض الـ sha ممكن يحصل حتى مع الطابور (مثلاً حد عدّل الملف يدويًا
+      // من واجهة GitHub في نفس اللحظة) — بنعيد المحاولة بجيب sha جديد
+      // تلقائيًا لحد 3 مرات قبل ما نستسلم ونبلّغ المستخدم فعليًا.
+      if (isConflict && attempt < 3) {
+        return performGithubWrite(data, attempt + 1);
+      }
       return { ok: false, message: err.message || `فشل النشر على GitHub (${putRes.status})` };
     }
     return { ok: true };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// ── كتابة (الأدمن بس — محتاج توكن) ──────────────────────────────────
+export interface GithubPushResult { ok: boolean; message?: string }
+
+export async function pushToGithub(data: unknown): Promise<GithubPushResult> {
+  const cfg = getGithubConfig();
+  if (!cfg.owner || !cfg.repo || !cfg.path) {
+    return { ok: false, message: 'إعدادات GitHub غير مكتملة (المالك/الريبو/المسار).' };
+  }
+  if (!cfg.token) {
+    return { ok: false, message: 'محتاج GitHub Token بصلاحية Contents: Read and write علشان تقدر تنشر.' };
+  }
+  // بننضم لآخر العملية اللي في الطابور بدل ما نبدأ فورًا — كده أي عدد
+  // نداءات متزامنة بتتنفذ واحدة ورا التانية بالترتيب، مش متوازية.
+  const result = githubWriteChain.then(() => performGithubWrite(data));
+  // لازم نحدّث الطابور فورًا (مش بعد await) عشان أي نداء تاني ييجي في
+  // نفس اللحظة يلاقي الطابور محدّث وينضم في آخره صح.
+  githubWriteChain = result.catch(() => ({ ok: false }));
+  return result;
 }
 
 // ── اختبار سريع للإعدادات (يتستخدم في شاشة الإعدادات قبل الحفظ) ─────
