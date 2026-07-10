@@ -40,6 +40,39 @@ function applyZoomToDocument(value: number) {
   (document.documentElement.style as CSSStyleDeclaration & { zoom?: string }).zoom = String(value);
 }
 
+// كل تغيير في الـ zoom بيسبب إعادة رسم/تخطيط للصفحة كلها (فيها كانفاس
+// WebGL وعناصر backdrop-blur تقيلة). لو سيبنا كل "tick" من الـ slider
+// (بيبقى فيهم عشرات في الثانية وقت السحب) يطبّق التغيير على الـ DOM
+// فورًا، الـ main thread بيتخنق وده اللي بيظهر كـ "هنج" ومؤشر الـ
+// slider بيبان واقف/مش بيتحرك. الحل: نجمع كل التغييرات اللي بتحصل في
+// نفس الفريم في تطبيق واحد بس عبر requestAnimationFrame.
+let pendingZoomValue: number | null = null;
+let zoomRafId: number | null = null;
+function scheduleApplyZoom(value: number) {
+  pendingZoomValue = value;
+  if (zoomRafId !== null) return;
+  zoomRafId = requestAnimationFrame(() => {
+    if (pendingZoomValue !== null) applyZoomToDocument(pendingZoomValue);
+    zoomRafId = null;
+    pendingZoomValue = null;
+  });
+}
+
+let saveTimeoutId: ReturnType<typeof setTimeout> | null = null;
+function scheduleSaveZoom(value: number) {
+  if (saveTimeoutId) clearTimeout(saveTimeoutId);
+  // بنأجل الكتابة في localStorage (عملية sync ممكن تبقى بطيئة نسبيًا)
+  // لحد ما المستخدم يبطّل السحب لمدة صغيرة، بدل ما تتكرر عشرات المرات
+  // في الثانية.
+  saveTimeoutId = setTimeout(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, String(value));
+    } catch {
+      // localStorage ممكن يكون مش متاح (وضع خاص جداً) — مش هيكسر التطبيق
+    }
+  }, 200);
+}
+
 /**
  * لازم تتنادى مرة واحدة بس في جذر التطبيق (App.tsx) عشان تطبّق أي
  * مستوى تكبير محفوظ من قبل أول ما التطبيق يفتح، وترجّع القيمة الحالية
@@ -49,17 +82,13 @@ export function useAppZoom() {
   const [zoom, setZoomState] = useState<number>(() => readStoredZoom());
 
   useEffect(() => {
-    applyZoomToDocument(zoom);
+    scheduleApplyZoom(zoom);
   }, [zoom]);
 
   const setZoom = useCallback((value: number) => {
     const next = clamp(value);
     setZoomState(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(next));
-    } catch {
-      // localStorage ممكن يكون مش متاح (وضع خاص جداً) — مش هيكسر التطبيق
-    }
+    scheduleSaveZoom(next);
   }, []);
 
   // المدى بقى كبير جدًا (10%–1000%)، فخطوة ثابتة 10% كانت هتاخد ~99
