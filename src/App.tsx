@@ -11,18 +11,28 @@ import IntroSplash from './components/IntroSplash';
 import SearchOverlay from './components/SearchOverlay';
 import SectionsExplorer from './components/SectionsExplorer';
 import LazySection from './components/LazySection';
+import ZoomControls from './components/ZoomControls';
 import HeroCarousel from './components/landing/HeroCarousel';
-import AcademyShowcase from './components/landing/AcademyShowcase';
 // AdminDashboard (~120KB) كان يتم استيراده بشكل مباشر (static import)، وده
 // معناه إن كل زائر عادي للموقع كان بيحمّل وبيفسّر (parse) كل كود لوحة
 // التحكم دي جوه الـ bundle الرئيسي، حتى لو مادخلش /admin خالص طول عمره.
 // دلوقتي بقى lazy: هيتحمّل فقط لما showAdmin تبقى true فعلاً.
 const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
-import DeveloperCredit from './components/landing/DeveloperCredit';
-import StudentComments from './components/landing/StudentComments';
-import GlobalPresence from './components/landing/GlobalPresence';
-import CoursesGallerySection from './components/landing/CoursesGallerySection';
-import LessonsPreviewSection from './components/landing/LessonsPreviewSection';
+
+// ─── تحويل أقسام الصفحة اللي تحت الكاروسيل لـ lazy(import) حقيقي ───
+// قبل كده كانت الأقسام دي بتتحمّل (يتنزّل ويتفسّر الكود بتاعها) مع أول
+// تحميل للتطبيق حتى لو المستخدم لسه ماوصلش لها بالسكرول — لأن الاستيراد
+// كان static import، و LazySection كانت بس بتأجّل الـ *mount* مش تحميل
+// الكود نفسه. دلوقتي كل قسم بقى js chunk منفصل، وبفضل الدمج مع
+// LazySection (اللي بتأجل الرندر لحد قرب القسم من الشاشة)، الكود نفسه
+// (بما فيه مكتبات تقيلة زي الجاليري الدائري ثلاثي الأبعاد والكرة
+// الأرضية) مبيتنزلش أصلاً غير لما المستخدم يقرب يوصله بالسكرول.
+const AcademyShowcase = lazy(() => import('./components/landing/AcademyShowcase'));
+const CoursesGallerySection = lazy(() => import('./components/landing/CoursesGallerySection'));
+const LessonsPreviewSection = lazy(() => import('./components/landing/LessonsPreviewSection'));
+const GlobalPresence = lazy(() => import('./components/landing/GlobalPresence'));
+const StudentComments = lazy(() => import('./components/landing/StudentComments'));
+const DeveloperCredit = lazy(() => import('./components/landing/DeveloperCredit'));
 import { useScrollReveal } from './hooks/useScrollReveal';
 import { useAppBranding } from './hooks/useAppBranding';
 import { useSiteText } from './hooks/useSiteContent';
@@ -478,6 +488,10 @@ export default function App() {
   return (
     <LanguageProvider>
       <AppContent />
+      {/* عائم فوق كل شاشة (الصفحة الرئيسية + الأدمن + الإعدادات) —
+          مستوى التكبير بيتحفظ في localStorage عبر useAppZoom جوه
+          الكومبوننت نفسه، فمش محتاج نمرره كـ prop لأي حتة. */}
+      <ZoomControls />
     </LanguageProvider>
   );
 }
