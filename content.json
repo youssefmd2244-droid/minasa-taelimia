@@ -192,6 +192,19 @@
       "attachments": [],
       "contentBody": "",
       "allowDownload": false
+    },
+    {
+      "id": 1783716855370001,
+      "sectionId": 1,
+      "title": "1000593040.jpg",
+      "type": "image",
+      "contentBody": "",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783716853500_1000593040.jpg",
+      "isFeatured": false,
+      "showOnHome": false,
+      "allowDownload": false,
+      "isDeleted": false,
+      "attachments": []
     }
   ],
   "records": [],
