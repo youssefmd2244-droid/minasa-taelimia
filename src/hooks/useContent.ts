@@ -47,8 +47,17 @@ export function useContent(sectionId?: number) {
   // نفس مبدأ useSections — اسم فريد لكل نسخة عشان لا يحصل تصادم لما
   // SearchOverlay و LessonList يستخدموا useContent() في نفس اللحظة.
   const channelName = useRef(`content-changes-${Math.random().toString(36).slice(2)}`).current;
+  // باگ تم اكتشافه وإصلاحه هنا: لما المستخدم ينقل بسرعة من قسم لقسم،
+  // refresh() بتتنادى كل مرة لكن بشكل غير متزامن (طلب فعلي لـ Supabase).
+  // لو طلب القسم الأول اتأخر ورجع بعد طلب القسم التاني (ترتيب الشبكة
+  // مش مضمون)، كان بيجي بعد كده ويكتب فوق العناصر الصح بعناصر القسم
+  // الغلط — وده اللي بيحس المستخدم إنه "بيجيب حاجات قسم تاني" أو
+  // "بيهنج". الحل: كل نداء لـ refresh بياخد رقم تسلسلي، ولما الرد
+  // يوصل بنتأكد إنه لسه آخر نداء قبل ما نطبّق نتيجته.
+  const requestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     if (shouldUseAdminBridge()) {
       setItems(getInitialContent(sectionId));
       return;
@@ -58,6 +67,8 @@ export function useContent(sectionId?: number) {
     let query = supabase.from('content').select('*').eq('is_deleted', false);
     if (sectionId !== undefined) query = query.eq('section_id', sectionId);
     const { data, error: err } = await query.order('updated_at', { ascending: false });
+    // رد وصل من نداء قديم (اتلغى فعليًا بنداء أحدث لقسم تاني) — نتجاهله.
+    if (requestId !== requestIdRef.current) return;
     if (err) {
       setError(err.message);
     } else {
