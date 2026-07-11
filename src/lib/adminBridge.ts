@@ -260,26 +260,58 @@ export function subscribeSyncStatus(cb: (detail: SyncStatusDetail) => void): () 
 
 let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+// باگ تم اكتشافه وإصلاحه هنا (سبب رئيسي لـ"بتحفظش لما بخرج من التطبيق
+// وأدخل تاني"): pushAppData بينتظر 500ms (debounce) قبل ما يبعت فعليًا
+// أي حاجة لـ Supabase/GitHub. على موبايل، لو الأدمن عدّل حاجة وبعدين
+// خرج من التطبيق (زرار الرجوع، تبديل تطبيق، قفل الشاشة) قبل ما الـ 500ms
+// دول يعدّوا + الطلب نفسه يخلص، نظام التشغيل بيوقف/يجمّد الـ WebView
+// والتايمر ده مبيتنفذش خالص — فآخر تعديل بيضيع تمامًا من غير أي تحذير.
+// الحل: نحتفظ بآخر نسخة بيانات معلّقة (pendingPushData)، ونصدّر
+// flushPendingPush() تقدر أي شاشة/حدث (زي تصغير التطبيق) تناديها فورًا
+// عشان تجبر الحفظ يحصل دلوقتي من غير ما تستنى الـ 500ms.
+let pendingPushData: RawAdminData | null = null;
+
+function runGithubAndSupabasePush(data: RawAdminData): void {
+  const source = getContentSource();
+  if ((source === 'supabase' || source === 'both') && isSupabaseConfigured && supabase) {
+    void supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data }).then(({ error }) => {
+      notifySyncStatus({ ok: !error, source: 'supabase', message: error?.message });
+    });
+  }
+  if ((source === 'github' || source === 'both') && isGithubConfigured()) {
+    // pushToGithub بنفسه بيدخل في طابور واحد للريبو (شوف githubStorage.ts)
+    // فمفيش خطر تعارض حتى لو الحفظ التلقائي ده اشتغل في نفس اللحظة
+    // اللي فيها المستخدم ضاغط "احفظ الآن" يدويًا.
+    void pushToGithub(data).then((result) => {
+      if (!result.ok) console.error('[adminBridge] pushAppData (github, background) failed:', result.message);
+      notifySyncStatus({ ok: result.ok, source: 'github', message: result.message });
+    });
+  }
+}
+
 /** يرفع نسخة جديدة من بيانات لوحة الإدارة (Supabase و/أو GitHub حسب مصدر المحتوى المختار)، مع debounce بسيط لتقليل الطلبات. */
 export function pushAppData(data: RawAdminData): void {
-  const source = getContentSource();
+  pendingPushData = data;
   if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
   pushDebounceTimer = setTimeout(() => {
-    if ((source === 'supabase' || source === 'both') && isSupabaseConfigured && supabase) {
-      void supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data }).then(({ error }) => {
-        notifySyncStatus({ ok: !error, source: 'supabase', message: error?.message });
-      });
-    }
-    if ((source === 'github' || source === 'both') && isGithubConfigured()) {
-      // pushToGithub بنفسه بيدخل في طابور واحد للريبو (شوف githubStorage.ts)
-      // فمفيش خطر تعارض حتى لو الحفظ التلقائي ده اشتغل في نفس اللحظة
-      // اللي فيها المستخدم ضاغط "احفظ الآن" يدويًا.
-      void pushToGithub(data).then((result) => {
-        if (!result.ok) console.error('[adminBridge] pushAppData (github, background) failed:', result.message);
-        notifySyncStatus({ ok: result.ok, source: 'github', message: result.message });
-      });
-    }
+    pushDebounceTimer = null;
+    pendingPushData = null;
+    runGithubAndSupabasePush(data);
   }, 500);
+}
+
+/**
+ * يجبر أي حفظ معلّق (لسه مستني الـ debounce) يتنفذ فورًا من غير أي
+ * تأخير. لازم تتنادى لما التطبيق هيقفل/يصغّر (background) أو الصفحة
+ * هتتخبى، عشان آخر تعديل ميضيعش. آمنة تتنادى حتى لو مفيش حاجة معلّقة
+ * أصلاً (no-op في الحالة دي).
+ */
+export function flushPendingPush(): void {
+  if (!pendingPushData) return;
+  if (pushDebounceTimer) { clearTimeout(pushDebounceTimer); pushDebounceTimer = null; }
+  const data = pendingPushData;
+  pendingPushData = null;
+  runGithubAndSupabasePush(data);
 }
 
 /**
