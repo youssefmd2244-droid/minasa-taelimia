@@ -1702,14 +1702,44 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
   }, [appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled, sections, contentItems, records, files, courses, siteTexts, siteImages]);
 
   // عند فتح لوحة الإدارة أول مرة على أي جهاز، نسحب أحدث نسخة حقيقية من
-  // Supabase ونستبدل بيها القيم المحلية (اللي ممكن تكون بيانات تجريبية
-  // افتراضية لو الجهاز ده فتح اللوحة لأول مرة). من غير الخطوة دي، أدمن
-  // بيفتح اللوحة على جهاز جديد كان هيشوف بيانات افتراضية قديمة، ولو ضاف
-  // حاجة كانت هتُكتب فوق آخر نسخة حقيقية وتمسحها بالغلط.
+  // Supabase/GitHub ونستبدل بيها القيم المحلية (اللي ممكن تكون بيانات
+  // تجريبية افتراضية لو الجهاز ده فتح اللوحة لأول مرة).
+  //
+  // باگ تم اكتشافه وإصلاحه هنا (سبب رئيسي لـ"بضيف حاجة وبتختفي"):
+  // السحب ده بيحصل بشكل غير متزامن (async) بعد ما اللوحة تفتح، وبياخد
+  // وقت (شبكة). لو الأدمن ضغط "إضافة" (قسم/محتوى) في نفس الفترة دي —
+  // قبل ما السحب يخلص — كانت النسخة اللي جاية من السحب البعيد (الأقدم،
+  // لأنها اتسحبت قبل ما تشمل إضافة الأدمن الجديدة) بتيجي وتـ"setState"
+  // فوق كل حاجة، فتمسح بالظبط العنصر اللي الأدمن لسه ضايفه من ثانية.
+  // ده اللي كان بيحس المستخدم إنه "بيضيف تاني حاجة في نفس القسم ومش
+  // بيرضى" — هي فعليًا بتتضاف لحظيًا، لكن بعد جزء من الثانية بتتمسح
+  // تلقائيًا بالسحب البعيد ده من غير أي رسالة خطأ.
+  // الحل: ناخد "بصمة" (snapshot) لكل البيانات المحلية وقت ما اللوحة
+  // فتحت، ولما السحب البعيد يخلص، نقارن البصمة دي بالحالة الحالية —
+  // لو الأدمن عدّل أي حاجة (حتى إضافة واحدة) في الفترة دي، نتجاهل
+  // النسخة البعيدة القديمة تمامًا بدل ما نمسح فوق تعديله.
+  const initialSnapshotRef = useRef<string>(JSON.stringify({
+    appName: data.appName, appIconUrl: data.appIconUrl, themeColors: data.themeColors,
+    maintenanceMode: data.maintenanceMode, rgbLighting: data.rgbLighting, notifications: data.notifications,
+    downloadFeatureEnabled: data.downloadFeatureEnabled, sections: data.sections, contentItems: data.contentItems,
+    records: data.records, files: data.files, courses: data.courses, siteTexts: data.siteTexts, siteImages: data.siteImages,
+  }));
+  const latestLocalStateRef = useRef<Record<string, unknown>>({});
+  useEffect(() => {
+    latestLocalStateRef.current = {
+      appName, appIconUrl, themeColors, maintenanceMode, rgbLighting, notifications, downloadFeatureEnabled,
+      sections, contentItems, records, files, courses, siteTexts, siteImages,
+    };
+  });
+
   useEffect(() => {
     let cancelled = false;
     pullRemoteAppData().then((remote) => {
       if (cancelled || !remote) return;
+      // لو أي حاجة محليًا اتغيّرت من وقت ما اللوحة فتحت لحد دلوقتي، يبقى
+      // الأدمن بدأ يعدّل قبل ما السحب البعيد يخلص — نسيب تعديله زي ما هو
+      // ومنطبقش النسخة البعيدة القديمة فوقه خالص.
+      if (JSON.stringify(latestLocalStateRef.current) !== initialSnapshotRef.current) return;
       const merged: AdminData = { ...DEFAULT_DATA, ...(remote as unknown as Partial<AdminData>) };
       setAppName(merged.appName);
       setAppIconUrl(merged.appIconUrl || '');
