@@ -11,7 +11,7 @@ import { SITE_TEXT_FIELDS, SITE_IMAGE_FIELDS } from '../../lib/siteContentRegist
 import DisplayScreen from './DisplayScreen';
 import ContentSourcePanel from './ContentSourcePanel';
 import { SUPABASE_SCHEMA } from './SchemaPanel';
-import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile, subscribeSyncStatus } from '../../lib/adminBridge';
+import { notifyAdminDataChanged, pullRemoteAppData, pushAppData, pushAppDataNow, uploadMediaFile, subscribeSyncStatus, isLocalWriteGuardActive } from '../../lib/adminBridge';
 import { EDUCATIONAL_COURSES } from '../ui/circular-gallery';
 import { writeAppDataToDevice, getStorageLocation, changeStorageLocation, STORAGE_LOCATION_LABELS, type StorageLocation } from '../../lib/deviceStorage';
 import {
@@ -1869,6 +1869,12 @@ export default function AdminDashboard({ currentPassword, onPasswordChange, onEx
     let cancelled = false;
     pullRemoteAppData().then((remote) => {
       if (cancelled || !remote) return;
+      // باگ تم اكتشافه وإصلاحه هنا: لو في كتابة محلية حديثة (زي "حفظ
+      // الآن" قبل ريفريش سريع للصفحة)، النسخة البعيدة دي ممكن توصل من
+      // سباق شبكة قبل ما آخر تعديل يستقر فعليًا على السيرفر — فتطبيقها
+      // كان بيمسح المحتوى اللي لسه محفوظ صح محليًا. نتجاهلها تمامًا
+      // طول ما إحنا في نافذة الحماية.
+      if (isLocalWriteGuardActive()) return;
       // لو أي حاجة محليًا اتغيّرت من وقت ما اللوحة فتحت لحد دلوقتي، يبقى
       // الأدمن بدأ يعدّل قبل ما السحب البعيد يخلص — نسيب تعديله زي ما هو
       // ومنطبقش النسخة البعيدة القديمة فوقه خالص.
