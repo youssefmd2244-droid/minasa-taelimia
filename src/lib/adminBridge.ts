@@ -152,6 +152,11 @@ interface RawAdminData {
   siteTexts?: Record<string, string>;
   /** نفس الفكرة بس لصور الموقع (روابط). */
   siteImages?: Record<string, string>;
+  /** وقت آخر نشر فعلي (ISO)، بيتضاف تلقائيًا وقت النشر بس (مش بيتخزن في
+   *  localStorage المحلي) — بيستخدمه pullRemoteAppData عشان يقارن بين
+   *  نسخة Supabase ونسخة GitHub ويرجّع الأحدث فعليًا بدل ما يفترض إن
+   *  Supabase دايمًا الأحدث. راجع الشرح فوق pullRemoteAppData. */
+  savedAt?: string;
 }
 
 // ── In-memory cache للبيانات المفكوكة (parsed) ──────────────────────────
@@ -272,29 +277,50 @@ async function pullFromSupabase(): Promise<RawAdminData | null> {
  * تفضل تحاول تقرا من Supabase بس (اللي مفيهوش أي بيانات في وضع GitHub
  * الخالص) — فالمحتوى الجديد میظهرش عند حد إلا عند الأدمن نفسه.
  *
- * الحل: القراءة (على عكس النشر) لازم تحاول كل المصادر المتاحة فعليًا
- * بغض النظر عن قيمة "المصدر" المحلية على الجهاز اللي بيقرا، مش بس على
- * جهاز الأدمن. بنجرب Supabase الأول (أسرع + Realtime)، ولو مفيش بيانات
- * فيه (null) بنرجع لـ GitHub تلقائيًا طالما بياناته الأساسية (owner/repo)
- * موجودة — سواء كان الجهاز اللي بيقرا "عارف" إن الأدمن اختار GitHub أو لأ.
+ * باگ تاني تم اكتشافه وإصلاحه هنا (السبب الحقيقي لـ"اخترت GitHub فقط،
+ * اتحفظ للجميع ✓، وبرضه مش بيظهر"): الحل القديم كان بيجرب Supabase
+ * الأول، ولو رجع بأي بيانات (حتى لو صف قديم فاضي من زمان قبل ما الأدمن
+ * يحوّل لوضع "GitHub فقط") كان بيوثق بيها فورًا ومبيجربش GitHub خالص.
+ * يعني: طول ما فيه أي صف قديم على Supabase (حتى لو مش محدّث من شهور)،
+ * أي تحديث جديد اتنشر على GitHub بس كان بيتجاهل تمامًا للأبد — بغض
+ * النظر عن قيمة "مصدر النشر" اللي الأدمن اختارها فعليًا.
+ * الحل الصحيح: نجرب المصدرين مع بعض (متوازي)، وكل نشر بيسجّل وقته
+ * (`savedAt`) وقت الحفظ — فلما نسحب، نقارن الوقتين ونرجّع الأحدث فعليًا
+ * أيًا كان مصدره، مش بس "أول واحد رجع بيانات". لو مصدر واحد بس فيه
+ * `savedAt` (بيانات قديمة اتحفظت قبل الإضافة دي)، بيتفضّل عليه تلقائيًا.
  */
 let lastPullSource: 'supabase' | 'github' | null = null;
 
 export async function pullRemoteAppData(): Promise<RawAdminData | null> {
-  const fromSupabase = await pullFromSupabase();
-  if (fromSupabase) {
+  const [fromSupabase, fromGithub] = await Promise.all([
+    pullFromSupabase(),
+    isGithubConfigured() ? pullFromGithubRaw<RawAdminData>() : Promise.resolve(null),
+  ]);
+
+  if (!fromSupabase && !fromGithub) {
+    lastPullSource = null;
+    return null;
+  }
+  if (fromSupabase && !fromGithub) {
     lastPullSource = 'supabase';
     return fromSupabase;
   }
-  if (isGithubConfigured()) {
-    const fromGithub = await pullFromGithubRaw<RawAdminData>();
-    if (fromGithub) {
-      lastPullSource = 'github';
-      return fromGithub;
-    }
+  if (fromGithub && !fromSupabase) {
+    lastPullSource = 'github';
+    return fromGithub;
   }
-  lastPullSource = null;
-  return null;
+
+  // الاثنين رجعوا بيانات — نقارن savedAt عشان نرجّع الأحدث فعليًا. لو
+  // مفيش savedAt في واحد منهم (بيانات قديمة من قبل إضافة الحقل ده)،
+  // نعتبره الأقدم افتراضيًا.
+  const supTime = Date.parse((fromSupabase as RawAdminData & { savedAt?: string }).savedAt || '') || 0;
+  const ghTime = Date.parse((fromGithub as RawAdminData & { savedAt?: string }).savedAt || '') || 0;
+  if (ghTime > supTime) {
+    lastPullSource = 'github';
+    return fromGithub as RawAdminData;
+  }
+  lastPullSource = 'supabase';
+  return fromSupabase as RawAdminData;
 }
 
 export const SYNC_STATUS_EVENT = 'eduverse-sync-status';
@@ -333,16 +359,25 @@ let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 // عشان تجبر الحفظ يحصل دلوقتي من غير ما تستنى الـ 500ms.
 let pendingPushData: RawAdminData | null = null;
 
+/** بيرجع نسخة من البيانات مع وقت النشر الحالي (savedAt) — بيتضاف بس لحظة
+ *  الإرسال الفعلي (مش بيتخزن في localStorage المحلي)، عشان pullRemoteAppData
+ *  يقدر يقارن حداثة نسخة Supabase مقابل GitHub بدل ما يفترض إن واحدة
+ *  منهم دايمًا الأحدث. */
+function withSavedAt(data: RawAdminData): RawAdminData {
+  return { ...data, savedAt: new Date().toISOString() };
+}
+
 function runGithubAndSupabasePush(data: RawAdminData): void {
   const source = getContentSource();
   const wantsSupabase = (source === 'supabase' || source === 'both') && isSupabaseConfigured && !!supabase;
   const wantsGithub = (source === 'github' || source === 'both') && isGithubConfigured();
+  const stamped = withSavedAt(data);
 
   const tasks: Promise<boolean>[] = [];
 
   if (wantsSupabase) {
     tasks.push(
-      supabase!.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data }).then(({ error }) => {
+      supabase!.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data: stamped }).then(({ error }) => {
         notifySyncStatus({ ok: !error, source: 'supabase', message: error?.message });
         return !error;
       })
@@ -353,7 +388,7 @@ function runGithubAndSupabasePush(data: RawAdminData): void {
     // فمفيش خطر تعارض حتى لو الحفظ التلقائي ده اشتغل في نفس اللحظة
     // اللي فيها المستخدم ضاغط "احفظ الآن" يدويًا.
     tasks.push(
-      pushToGithub(data).then((result) => {
+      pushToGithub(stamped).then((result) => {
         if (!result.ok) console.error('[adminBridge] pushAppData (github, background) failed:', result.message);
         notifySyncStatus({ ok: result.ok, source: 'github', message: result.message });
         return result.ok;
@@ -415,6 +450,7 @@ export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean;
   const source = getContentSource();
   const wantsSupabase = source === 'supabase' || source === 'both';
   const wantsGithub = source === 'github' || source === 'both';
+  const stamped = withSavedAt(data);
 
   let supabaseOk: boolean | null = null;
   let supabaseMessage: string | undefined;
@@ -433,14 +469,14 @@ export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean;
     // ويفشل الحفظ برسالة سيرفر مش واضحة. نكتشف الحالة دي هنا ونديله رسالة
     // مفهومة بدل ما نسيب Supabase يرفض الطلب برسالة تقنية غامضة.
     let payloadSize = 0;
-    try { payloadSize = new Blob([JSON.stringify(data)]).size; } catch { /* ignore */ }
+    try { payloadSize = new Blob([JSON.stringify(stamped)]).size; } catch { /* ignore */ }
     if (payloadSize > 3_000_000) {
       supabaseOk = false;
       supabaseMessage = `حجم البيانات كبير جدًا (${(payloadSize / 1_000_000).toFixed(1)}MB) — على الأغلب صورة أو فيديو اترفع بشكل محلي بدل السحابة (فشل رفع Storage). تأكد إن bucket "eduverse-media" وسياساته منشأة (شغّل 0004_media_storage.sql)، وإن اتصالك بالإنترنت شغال وقت الرفع، ثم أعد رفع أي ملف كبير.`;
       return;
     }
     try {
-      const { error } = await supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data });
+      const { error } = await supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data: stamped });
       if (error) console.error('[adminBridge] pushAppDataNow (supabase) failed:', error.message, error);
       supabaseOk = !error;
       supabaseMessage = error?.message;
@@ -453,7 +489,7 @@ export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean;
 
   const githubTask: Promise<void> = (async () => {
     if (!wantsGithub) return;
-    const result = await pushToGithub(data);
+    const result = await pushToGithub(stamped);
     githubOk = result.ok;
     githubMessage = result.message;
     if (!result.ok) console.error('[adminBridge] pushAppDataNow (github) failed:', result.message);
