@@ -198,7 +198,7 @@
       "type": "image",
       "title": "1000593897.jpg",
       "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862281819_1000593897.jpg",
-      "isDeleted": true,
+      "isDeleted": false,
       "sectionId": 1,
       "isFeatured": false,
       "showOnHome": false,
@@ -211,50 +211,13 @@
       "type": "image",
       "title": "1000593894.jpg",
       "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862295812_1000593894.jpg",
-      "isDeleted": true,
+      "isDeleted": false,
       "sectionId": 2,
       "isFeatured": false,
       "showOnHome": false,
       "attachments": [],
       "contentBody": "",
       "allowDownload": false
-    },
-    {
-      "id": 1783862708085001,
-      "sectionId": 2,
-      "title": "1000593897.jpg",
-      "type": "image",
-      "contentBody": "",
-      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862698213_1000593897.jpg",
-      "isFeatured": false,
-      "showOnHome": false,
-      "allowDownload": false,
-      "isDeleted": false,
-      "attachments": []
-    },
-    {
-      "id": 1783862779140002,
-      "sectionId": 2,
-      "title": "1000593897.jpg",
-      "type": "image",
-      "contentBody": "",
-      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862769773_1000593897.jpg",
-      "isFeatured": false,
-      "showOnHome": false,
-      "allowDownload": false,
-      "isDeleted": false,
-      "attachments": [
-        {
-          "url": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/misc/1783862756172_Screenshot__-_-_-_-_-_-__com.eduverse.lms.jpg",
-          "name": "Screenshot_٢٠٢٦-٠٧-١٢-١٥-٥٨-٥٨-٦١٧_com.eduverse.lms.jpg",
-          "type": "image"
-        },
-        {
-          "url": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/misc/1783862756172_Screenshot__-_-_-_-_-_-__com.eduverse.lms.jpg",
-          "name": "Screenshot_٢٠٢٦-٠٧-١٢-١٥-٥٩-٢٨-٨٣٥_com.eduverse.lms.jpg",
-          "type": "image"
-        }
-      ]
     }
   ],
   "records": [],
@@ -331,5 +294,5 @@
   ],
   "siteTexts": {},
   "siteImages": {},
-  "savedAt": "2026-07-12T13:26:25.073Z"
+  "savedAt": "2026-07-12T16:16:16.741Z"
 }
