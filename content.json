@@ -218,6 +218,19 @@
       "attachments": [],
       "contentBody": "",
       "allowDownload": false
+    },
+    {
+      "id": 1783862708085001,
+      "sectionId": 2,
+      "title": "1000593897.jpg",
+      "type": "image",
+      "contentBody": "",
+      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862698213_1000593897.jpg",
+      "isFeatured": false,
+      "showOnHome": false,
+      "allowDownload": false,
+      "isDeleted": false,
+      "attachments": []
     }
   ],
   "records": [],
@@ -294,5 +307,5 @@
   ],
   "siteTexts": {},
   "siteImages": {},
-  "savedAt": "2026-07-12T13:24:06.359Z"
+  "savedAt": "2026-07-12T13:25:08.314Z"
 }
