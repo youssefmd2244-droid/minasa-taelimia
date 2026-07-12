@@ -297,7 +297,7 @@ export function pushAppData(data: RawAdminData): void {
     pushDebounceTimer = null;
     pendingPushData = null;
     runGithubAndSupabasePush(data);
-  }, 500);
+  }, 200);
 }
 
 /**
