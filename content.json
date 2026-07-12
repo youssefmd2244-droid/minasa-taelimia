@@ -198,7 +198,7 @@
       "type": "image",
       "title": "1000593897.jpg",
       "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862281819_1000593897.jpg",
-      "isDeleted": false,
+      "isDeleted": true,
       "sectionId": 1,
       "isFeatured": false,
       "showOnHome": false,
@@ -294,5 +294,5 @@
   ],
   "siteTexts": {},
   "siteImages": {},
-  "savedAt": "2026-07-12T16:16:24.302Z"
+  "savedAt": "2026-07-12T16:16:25.521Z"
 }
