@@ -195,42 +195,29 @@
     },
     {
       "id": 1783862285176001,
-      "sectionId": 1,
-      "title": "1000593897.jpg",
       "type": "image",
-      "contentBody": "",
+      "title": "1000593897.jpg",
       "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862281819_1000593897.jpg",
+      "isDeleted": false,
+      "sectionId": 1,
       "isFeatured": false,
       "showOnHome": false,
-      "allowDownload": false,
-      "isDeleted": false,
-      "attachments": []
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
     },
     {
       "id": 1783862305274002,
-      "sectionId": 2,
+      "type": "image",
       "title": "1000593894.jpg",
-      "type": "image",
-      "contentBody": "",
       "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862295812_1000593894.jpg",
-      "isFeatured": false,
-      "showOnHome": false,
-      "allowDownload": false,
       "isDeleted": false,
-      "attachments": []
-    },
-    {
-      "id": 1783862373738003,
       "sectionId": 2,
-      "title": "1000593867.jpg",
-      "type": "image",
-      "contentBody": "",
-      "fileUrl": "https://naqjnxejjwcffuqunftq.supabase.co/storage/v1/object/public/eduverse-media/content/1783862364409_1000593867.jpg",
       "isFeatured": false,
       "showOnHome": false,
-      "allowDownload": false,
-      "isDeleted": false,
-      "attachments": []
+      "attachments": [],
+      "contentBody": "",
+      "allowDownload": false
     }
   ],
   "records": [],
@@ -307,5 +294,5 @@
   ],
   "siteTexts": {},
   "siteImages": {},
-  "savedAt": "2026-07-12T13:19:37.521Z"
+  "savedAt": "2026-07-12T13:20:53.701Z"
 }
