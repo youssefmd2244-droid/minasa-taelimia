@@ -5,7 +5,7 @@ import {
   Check, Eye, EyeOff, Palette, Globe, Save, ArrowLeft, Home, Star, Shield, Power,
   Lightbulb, Bell, Image as ImageIcon, Video, UploadCloud, Type, Mic, MicOff, Download,
   File, Music, StopCircle, ZoomIn, Monitor, Loader2, AlertCircle, GraduationCap, ArrowUp, ArrowDown,
-  RotateCcw, ChevronDown, ChevronUp,
+  RotateCcw, ChevronDown, ChevronUp, Link as LinkIcon,
 } from 'lucide-react';
 import { SITE_TEXT_FIELDS, SITE_IMAGE_FIELDS } from '../../lib/siteContentRegistry';
 import DisplayScreen from './DisplayScreen';
@@ -264,6 +264,8 @@ function AttachmentPicker({ attachments, onChange, onView }: {
   attachments: Attachment[]; onChange: (a: Attachment[]) => void;
   onView?: (src: string, type: 'image' | 'video') => void;
 }) {
+  const [showLinkBox, setShowLinkBox] = useState(false);
+  const [linkText, setLinkText] = useState('');
   const addAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []); if (!files.length) return;
     // بيقبل أكتر من صورة/فيديو/صوت مرة واحدة (مجمّعين مع بعض جوه نفس العنصر)
@@ -275,6 +277,22 @@ function AttachmentPicker({ attachments, onChange, onView }: {
     });
     onChange([...attachments, ...newAttachments]);
     e.target.value = '';
+  };
+  // إضافة عن طريق روابط جاهزة (بدل رفع ملف) — بيقبل رابط واحد أو أكتر من
+  // رابط مع بعض، كل واحد في سطر لوحده أو مفصولين بفاصلة. النوع (صورة/
+  // فيديو/صوت) بيتحدد تلقائيًا من امتداد الرابط.
+  const guessAttachmentType = (url: string): Attachment['type'] => {
+    const clean = url.split('?')[0].toLowerCase();
+    if (/\.(mp4|webm|mov|m3u8|mkv)$/.test(clean)) return 'video';
+    if (/\.(mp3|wav|ogg|m4a|aac)$/.test(clean)) return 'audio';
+    return 'image';
+  };
+  const addLinks = () => {
+    const urls = linkText.split(/[\n,]/).map(u => u.trim()).filter(Boolean);
+    if (!urls.length) return;
+    const newAttachments: Attachment[] = urls.map(url => ({ url, name: 'رابط خارجي', type: guessAttachmentType(url) }));
+    onChange([...attachments, ...newAttachments]);
+    setLinkText(''); setShowLinkBox(false);
   };
   const remove = (i: number) => onChange(attachments.filter((_, idx) => idx !== i));
   return (
@@ -302,11 +320,30 @@ function AttachmentPicker({ attachments, onChange, onView }: {
           </div>
         ))}
       </div>
-      <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs text-white/50 hover:text-white/80 transition-colors"
-        style={{ border: '1px dashed rgba(255,255,255,0.12)' }}>
-        <Plus size={12} /> إضافة صورة / فيديو / صوت (يمكن اختيار أكتر من ملف)
-        <input type="file" multiple accept="image/*,video/*,audio/*" onChange={addAttachment} className="hidden" />
-      </label>
+      <div className="flex gap-2">
+        <label className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs text-white/50 hover:text-white/80 transition-colors"
+          style={{ border: '1px dashed rgba(255,255,255,0.12)' }}>
+          <Plus size={12} /> رفع صورة / فيديو / صوت (يمكن اختيار أكتر من ملف)
+          <input type="file" multiple accept="image/*,video/*,audio/*" onChange={addAttachment} className="hidden" />
+        </label>
+        <button type="button" onClick={() => setShowLinkBox(v => !v)}
+          className="px-3 py-2 rounded-lg text-xs text-white/50 hover:text-white/80 transition-colors flex items-center gap-1.5"
+          style={{ border: '1px dashed rgba(255,255,255,0.12)' }}>
+          <LinkIcon size={12} /> أو الصق رابط
+        </button>
+      </div>
+      {showLinkBox && (
+        <div className="mt-2 space-y-1.5">
+          <textarea value={linkText} onChange={e => setLinkText(e.target.value)} rows={2}
+            placeholder="رابط واحد أو أكتر — كل رابط في سطر لوحده"
+            className="w-full px-3 py-2 rounded-lg text-white placeholder-white/30 outline-none text-xs resize-none"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', direction: 'ltr', textAlign: 'left' }} />
+          <button type="button" onClick={addLinks} disabled={!linkText.trim()}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: linkText.trim() ? 'rgba(107,191,122,0.15)' : 'rgba(255,255,255,0.05)', color: linkText.trim() ? '#6BBF7A' : 'rgba(255,255,255,0.3)' }}>
+            إضافة الروابط
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -473,6 +510,9 @@ function GalleryTab({ courses, setCourses }: { courses: GalleryCourse[]; setCour
                 onChange={e => { const f = e.target.files?.[0]; if (f) pickImage(f); e.target.value = ''; }} />
             </label>
           </div>
+          <input type="text" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
+            placeholder="أو الصق رابط صورة الكورس مباشرة"
+            className="w-full px-3 py-2.5 rounded-xl text-white placeholder-white/30 outline-none text-sm" style={{ ...inp, direction: 'ltr', textAlign: 'left' }} />
           {uploadError && <p className="text-xs text-red-400">فشل رفع الصورة: {uploadError}</p>}
           <button onClick={saveCourse} disabled={!title.trim() || !imageUrl}
             className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
@@ -525,6 +565,12 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
   const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string; posterUrl?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [posterUploading, setPosterUploading] = useState(false);
+  // إضافة عن طريق لصق رابط بدل رفع ملف — بيقبل رابط واحد أو أكتر (كل
+  // رابط في سطر لوحده أو مفصولين بفاصلة). لو أكتر من رابط، أول واحد
+  // بيبقى العنصر الحالي والباقي بيتحول كل واحد لعنصر مستقل، بنفس منطق
+  // رفع أكتر من ملف مرة واحدة.
+  const [linkInput, setLinkInput] = useState('');
+  const [posterLinkInput, setPosterLinkInput] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [editingContent, setEditingContent] = useState<ContentItem | null>(null);
   const activeSections = sections.filter(s => !s.isDeleted);
@@ -558,6 +604,26 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
     }
     e.target.value = '';
   };
+  /** يستخدم رابط/روابط جاهزة بدل رفع ملف — نفس منطق رفع أكتر من ملف. */
+  const applyLinks = () => {
+    const urls = linkInput.split(/[\n,]/).map(u => u.trim()).filter(Boolean);
+    if (!urls.length) return;
+    setUploadedFile({ url: urls[0], name: 'رابط خارجي' });
+    if (urls.length > 1) {
+      setContent(prev => [...prev, ...urls.slice(1).map(u => ({
+        id: genId(), sectionId, title: 'رابط خارجي', type: mediaType, contentBody: desc.trim(),
+        fileUrl: u, posterUrl: undefined as string | undefined, isFeatured: false, showOnHome, allowDownload: false, isDeleted: false,
+        attachments: [] as Attachment[],
+      }))]);
+    }
+    setLinkInput('');
+  };
+  /** يستخدم رابط جاهز لصورة الغلاف بدل رفعها. */
+  const applyPosterLink = () => {
+    if (!posterLinkInput.trim()) return;
+    setUploadedFile(prev => prev ? { ...prev, posterUrl: posterLinkInput.trim() } : prev);
+    setPosterLinkInput('');
+  };
   /**
    * بيسمح للأدمن يختار صورة غلاف يدويًا من معرض الصور للفيديو المرفوع.
    * اختياري تمامًا — لو محدش اختار حاجة، الفيديو بيفضل شغال عادي بدون
@@ -586,6 +652,18 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
   };
   const [editingUpload, setEditingUpload] = useState<{ url: string; name: string; posterUrl?: string } | null>(null);
   const [editPosterUploading, setEditPosterUploading] = useState(false);
+  const [editLinkInput, setEditLinkInput] = useState('');
+  const [editPosterLinkInput, setEditPosterLinkInput] = useState('');
+  const applyEditLink = () => {
+    if (!editLinkInput.trim()) return;
+    setEditingUpload(prev => ({ url: editLinkInput.trim(), name: 'رابط خارجي', posterUrl: prev?.posterUrl }));
+    setEditLinkInput('');
+  };
+  const applyEditPosterLink = () => {
+    if (!editPosterLinkInput.trim() || !editingContent) return;
+    setEditingUpload(prev => ({ url: prev?.url || editingContent.fileUrl, name: prev?.name || editingContent.title, posterUrl: editPosterLinkInput.trim() }));
+    setEditPosterLinkInput('');
+  };
   const pickCustomPosterForEdit = async (file: File) => {
     if (!editingContent) return;
     setEditPosterUploading(true);
@@ -641,11 +719,28 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                   <span className="text-xs text-white/60">جاري رفع {mediaType === 'image' ? 'الصورة' : 'الفيديو'}...</span>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 transition-colors" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
-                  <UploadCloud size={24} className="text-white/40" />
-                  <span className="text-xs text-white/50">{mediaType === 'image' ? 'اختر صورة (أو أكتر)' : 'اختر فيديو (أو أكتر)'}</span>
-                  <input type="file" multiple accept={mediaType === 'image' ? 'image/*' : 'video/*'} onChange={handleFileSelect} className="hidden" />
-                </label>
+                <>
+                  <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl cursor-pointer hover:bg-white/5 transition-colors" style={{ border: '2px dashed rgba(255,255,255,0.15)' }}>
+                    <UploadCloud size={24} className="text-white/40" />
+                    <span className="text-xs text-white/50">{mediaType === 'image' ? 'اختر صورة (أو أكتر)' : 'اختر فيديو (أو أكتر)'}</span>
+                    <input type="file" multiple accept={mediaType === 'image' ? 'image/*' : 'video/*'} onChange={handleFileSelect} className="hidden" />
+                  </label>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[11px] text-white/30">أو</span>
+                    <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                  </div>
+                  <div className="flex gap-1.5 mt-2">
+                    <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)}
+                      placeholder="الصق رابط (أو أكتر من رابط مفصولين بفاصلة)"
+                      className="flex-1 px-3 py-2 rounded-lg text-white placeholder-white/30 outline-none text-xs" style={{ ...inp, direction: 'ltr', textAlign: 'left' }}
+                      onKeyDown={e => e.key === 'Enter' && applyLinks()} />
+                    <button onClick={applyLinks} disabled={!linkInput.trim()}
+                      className="px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1"
+                      style={{ background: linkInput.trim() ? 'rgba(107,191,122,0.15)' : 'rgba(255,255,255,0.05)', color: linkInput.trim() ? '#6BBF7A' : 'rgba(255,255,255,0.3)' }}>
+                      <LinkIcon size={12} /> استخدام
+                    </button>
+                  </div>
+                </>
               )
             ) : (
               <div className="rounded-xl overflow-hidden relative" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -676,6 +771,17 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                     <ImageIcon size={12} /> اختيار صورة غلاف من المعرض
                     <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) void pickCustomPoster(f); e.target.value = ''; }} className="hidden" />
                   </label>
+                  <div className="flex gap-1.5 mt-1.5">
+                    <input type="text" value={posterLinkInput} onChange={e => setPosterLinkInput(e.target.value)}
+                      placeholder="أو الصق رابط صورة الغلاف"
+                      className="flex-1 px-2.5 py-1.5 rounded-lg text-white placeholder-white/30 outline-none text-[11px]" style={{ ...inp, direction: 'ltr', textAlign: 'left' }}
+                      onKeyDown={e => e.key === 'Enter' && applyPosterLink()} />
+                    <button onClick={applyPosterLink} disabled={!posterLinkInput.trim()}
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                      style={{ background: posterLinkInput.trim() ? 'rgba(110,181,255,0.15)' : 'rgba(255,255,255,0.05)', color: posterLinkInput.trim() ? '#6EB5FF' : 'rgba(255,255,255,0.3)' }}>
+                      استخدام
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -762,6 +868,17 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                         <UploadCloud size={12} /> استبدال {editingContent.type === 'image' ? 'الصورة' : 'الفيديو'}
                         <input type="file" accept={editingContent.type === 'image' ? 'image/*' : 'video/*'} onChange={async e => { const nf = e.target.files?.[0]; if (!nf) return; const r = await readMediaFile(nf, 'content'); setEditingUpload({ url: r.url, name: r.name }); }} className="hidden" />
                       </label>
+                      <div className="flex gap-1.5">
+                        <input type="text" value={editLinkInput} onChange={e => setEditLinkInput(e.target.value)}
+                          placeholder="أو الصق رابط بديل"
+                          className="flex-1 px-2.5 py-1.5 rounded-lg text-white placeholder-white/30 outline-none text-[11px]" style={{ ...inp, direction: 'ltr', textAlign: 'left' }}
+                          onKeyDown={e => e.key === 'Enter' && applyEditLink()} />
+                        <button onClick={applyEditLink} disabled={!editLinkInput.trim()}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                          style={{ background: editLinkInput.trim() ? 'rgba(110,181,255,0.15)' : 'rgba(255,255,255,0.05)', color: editLinkInput.trim() ? '#6EB5FF' : 'rgba(255,255,255,0.3)' }}>
+                          استخدام
+                        </button>
+                      </div>
                       {editingContent.type === 'video' && (
                         <div className="flex items-center gap-3 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#000' }}>
@@ -773,10 +890,23 @@ function ContentTab({ content, setContent, sections, downloadFeatureEnabled, onM
                               <Video size={14} className="text-white/30" />
                             )}
                           </div>
-                          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
-                            <ImageIcon size={12} /> تغيير صورة الغلاف يدويًا
-                            <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) void pickCustomPosterForEdit(f); e.target.value = ''; }} className="hidden" />
-                          </label>
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer" style={{ background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A' }}>
+                              <ImageIcon size={12} /> تغيير صورة الغلاف يدويًا
+                              <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) void pickCustomPosterForEdit(f); e.target.value = ''; }} className="hidden" />
+                            </label>
+                            <div className="flex gap-1.5">
+                              <input type="text" value={editPosterLinkInput} onChange={e => setEditPosterLinkInput(e.target.value)}
+                                placeholder="أو الصق رابط صورة الغلاف"
+                                className="flex-1 px-2.5 py-1.5 rounded-lg text-white placeholder-white/30 outline-none text-[11px]" style={{ ...inp, direction: 'ltr', textAlign: 'left' }}
+                                onKeyDown={e => e.key === 'Enter' && applyEditPosterLink()} />
+                              <button onClick={applyEditPosterLink} disabled={!editPosterLinkInput.trim()}
+                                className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                                style={{ background: editPosterLinkInput.trim() ? 'rgba(110,181,255,0.15)' : 'rgba(255,255,255,0.05)', color: editPosterLinkInput.trim() ? '#6EB5FF' : 'rgba(255,255,255,0.3)' }}>
+                                استخدام
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </>
@@ -1387,11 +1517,14 @@ function TextsImagesPanel({ siteTexts, setSiteTexts, siteImages, setSiteImages, 
                                   </button>
                                 )}
                               </div>
-                              <label className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer hover:bg-white/20 transition-colors w-fit">
+                              <label className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer hover:bg-white/20 transition-colors w-fit mb-1.5">
                                 {uploadingKey === f.key ? <><Loader2 size={12} className="animate-spin" /> جاري الرفع...</> : <><UploadCloud size={12} /> رفع صورة جديدة</>}
                                 <input type="file" accept="image/*" className="hidden" disabled={uploadingKey === f.key}
                                   onChange={e => { const file = e.target.files?.[0]; if (file) pickImage(f.key, file); e.target.value = ''; }} />
                               </label>
+                              <input type="text" value={current === f.default ? '' : current} onChange={e => setImage(f.key, e.target.value || f.default)}
+                                placeholder="أو الصق رابط الصورة"
+                                className="w-full px-2.5 py-1.5 rounded-lg text-white placeholder-white/25 outline-none text-[11px]" style={{ ...inp, direction: 'ltr', textAlign: 'left' }} />
                             </div>
                           </div>
                         );
