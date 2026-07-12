@@ -9,30 +9,30 @@ interface IntroSplashProps {
 const BRAND = 'EDUVERSE';
 
 export default function IntroSplash({ onFinish }: IntroSplashProps) {
-  const [progress, setProgress] = useState(0);
+  const [started, setStarted] = useState(false);
   const [exiting, setExiting] = useState(false);
+  const DURATION = 1600; // ms — total splash life
 
-  // Progress bar drives the 1.6s total duration
+  // باگ تم اكتشافه وإصلاحه هنا (سبب رئيسي لـ"تطبيق فيه لاج وتقطيع من أول
+  // ما بيفتحه"): شريط التقدّم كان بيتحرك عن طريق requestAnimationFrame
+  // بينادي setProgress (تحديث React state) في *كل فريم* — يعني 60 إعادة
+  // رندر كاملة في الثانية، لمدة ثانية ونص، بالظبط في نفس اللحظة اللي
+  // باقي التطبيق (الأقسام، الكاروسيل، مزامنة لوحة الإدارة...) بيبدأ
+  // يتحمّل فيها. ده كان بيسحب معالجة الـ CPU من الرندر الأولي نفسه
+  // ويسبب التهنيج والتقطيع اللي حاسس بيه من أول ثانية.
+  // الحل: شريط التقدّم بقى مجرد CSS transition واحد (width بتتحرك بمعالجة
+  // الـ GPU، مش React state)، وبنستخدم setTimeout واحد بس (مش RAF لكل
+  // فريم) عشان نعرف امتى نبدأ الخروج — صفر إعادة رندر إضافية طول مدة
+  // السبلاش.
   useEffect(() => {
-    const start = performance.now();
-    const DURATION = 1600; // ms — total splash life
-
-    const raf = (now: number) => {
-      const elapsed = now - start;
-      const pct = Math.min(elapsed / DURATION, 1);
-      setProgress(pct);
-
-      if (pct < 1) {
-        requestAnimationFrame(raf);
-      } else {
-        // Begin exit
-        setExiting(true);
-        setTimeout(onFinish, 550); // wait for exit animation
-      }
-    };
-
-    const id = requestAnimationFrame(raf);
-    return () => cancelAnimationFrame(id);
+    // فريم واحد تأخير بسيط قبل ما نبدأ الـ transition، عشان المتصفح
+    // يقدر يطبّق الحالة الابتدائية (width: 0) قبل ما نغيّرها لـ 100%.
+    const raf = requestAnimationFrame(() => setStarted(true));
+    const timer = setTimeout(() => {
+      setExiting(true);
+      setTimeout(onFinish, 550); // wait for exit animation
+    }, DURATION);
+    return () => { cancelAnimationFrame(raf); clearTimeout(timer); };
   }, [onFinish]);
 
   return (
@@ -284,11 +284,11 @@ export default function IntroSplash({ onFinish }: IntroSplashProps) {
               <div
                 style={{
                   height: '100%',
-                  width: `${progress * 100}%`,
+                  width: started ? '100%' : '0%',
                   background:
                     'linear-gradient(90deg, #f97316, #fb923c)',
                   borderRadius: '999px',
-                  transition: 'width 80ms linear',
+                  transition: `width ${DURATION}ms linear`,
                   boxShadow: '0 0 8px rgba(249,115,22,0.6)',
                 }}
               />
