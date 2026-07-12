@@ -31,6 +31,38 @@ const APP_DATA_TABLE = 'app_data';
 const APP_DATA_ROW_ID = 1;
 export const ADMIN_DATA_EVENT = 'eduverse-admin-data-changed';
 
+// ── حماية ضد سباق الحفظ/السحب (باگ تم اكتشافه وإصلاحه هنا) ──────────────
+// المشكلة: الأدمن نفسه مشترك في قناة Realtime بتاعة app_data (نفس القناة
+// اللي بتسمعها صفحة الطالب). لما الأدمن يحفظ (تلقائي أو "احفظ الآن")،
+// الـ upsert نفسه بيطلق postgres_changes event على نفس صفحته، وده بيعمل
+// سحب جديد (SELECT) من Supabase ويكتبه فوق localStorage — ولو أي تأخير
+// شبكة بسيط حصل (شبه مؤكد يحصل أحيانًا)، ممكن يوصل سحب لبيانات "أقدم"
+// (من قبل آخر تعديل) بعد الأحدث ويمسحها فورًا. كمان: فتح الصفحة من جديد
+// (ريفريش) كان بيسحب نسخة remote ويطبّقها فوق البيانات المحلية بشرط وحيد
+// ("هل الأدمن عدّل من وقت ما الصفحة فتحت؟") وطبعًا الإجابة لأ على طول لأن
+// الصفحة لسه فاتحة جديد — فأي فارق توقيت بسيط بين الحفظ ووصول النسخة
+// المحدثة فعليًا للسيرفر كان بيخلي الريفريش يرجّع نسخة أقدم فوق الأحدث.
+// الحل: نسجل "نافذة حماية" (localStorage، عشان تعيش حتى بعد الريفريش)
+// كل ما نبدأ أي عملية حفظ محلية، ونرفض تطبيق أي نسخة remote توصل خلالها.
+const LOCAL_WRITE_GUARD_KEY = 'eduverse_local_write_guard_until';
+const LOCAL_WRITE_GUARD_MS = 8000;
+
+function extendLocalWriteGuard() {
+  try { localStorage.setItem(LOCAL_WRITE_GUARD_KEY, String(Date.now() + LOCAL_WRITE_GUARD_MS)); } catch { /* ignore */ }
+}
+
+/** true لو في كتابة محلية حصلت أو بتحصل دلوقتي قريب — أي نسخة remote
+ *  توصل خلال النافذة دي المفروض تتجاهل، عشان منمسحش تعديل حديث بنسخة
+ *  أقدم لسه واصلة متأخرة. */
+export function isLocalWriteGuardActive(): boolean {
+  try {
+    const until = Number(localStorage.getItem(LOCAL_WRITE_GUARD_KEY) || '0');
+    return Date.now() < until;
+  } catch {
+    return false;
+  }
+}
+
 /** Fired by AdminDashboard.tsx every time it persists a change. */
 export function notifyAdminDataChanged() {
   try {
@@ -291,6 +323,7 @@ function runGithubAndSupabasePush(data: RawAdminData): void {
 
 /** يرفع نسخة جديدة من بيانات لوحة الإدارة (Supabase و/أو GitHub حسب مصدر المحتوى المختار)، مع debounce بسيط لتقليل الطلبات. */
 export function pushAppData(data: RawAdminData): void {
+  extendLocalWriteGuard();
   pendingPushData = data;
   if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
   pushDebounceTimer = setTimeout(() => {
@@ -308,6 +341,7 @@ export function pushAppData(data: RawAdminData): void {
  */
 export function flushPendingPush(): void {
   if (!pendingPushData) return;
+  extendLocalWriteGuard();
   if (pushDebounceTimer) { clearTimeout(pushDebounceTimer); pushDebounceTimer = null; }
   const data = pendingPushData;
   pendingPushData = null;
@@ -321,6 +355,7 @@ export function flushPendingPush(): void {
  * فعلاً بدل ما يفترض كده وهو مش متأكد.
  */
 export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean; cloud: boolean; message?: string }> {
+  extendLocalWriteGuard();
   if (pushDebounceTimer) { clearTimeout(pushDebounceTimer); pushDebounceTimer = null; }
   const source = getContentSource();
   const wantsSupabase = source === 'supabase' || source === 'both';
@@ -400,6 +435,10 @@ export function initAdminBridgeSync(): void {
 
   const applyRemote = (remote: RawAdminData | null) => {
     if (!remote) return;
+    // في نافذة حماية بعد كتابة محلية حديثة — النسخة البعيدة دي ممكن
+    // تكون وصلت متأخرة (سباق شبكة) وتمثل حالة أقدم من اللي على الشاشة
+    // فعلاً؛ نرفض نطبّقها ونسيب البيانات المحلية زي ما هي.
+    if (isLocalWriteGuardActive()) return;
     writeAdminDataCache(remote);
     notifyAdminDataChanged();
   };
