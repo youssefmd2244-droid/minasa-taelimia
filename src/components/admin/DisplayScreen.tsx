@@ -16,6 +16,8 @@ interface DisplayItem {
   content?: string;
   /** data-URL of the uploaded file itself, for downloadable/non-previewable types */
   url?: string;
+  /** صورة غلاف اختيارية للفيديو (رابط أو ملف مرفوع) */
+  posterUrl?: string;
   fileName?: string;
   createdAt: string;
 }
@@ -80,6 +82,12 @@ export default function DisplayScreen() {
   const [newContent, setNewContent] = useState('');
   const [pendingFile, setPendingFile] = useState<{ dataUrl: string; name: string } | null>(null);
   const [fileLoading, setFileLoading] = useState(false);
+  // إضافة عن طريق رابط جاهز بدل رفع ملف (مفيد للفيديوهات والصور الكبيرة
+  // اللي أفضل تفضل مستضافة في مكان تاني بدل ما تتحول base64 وتتخزن هنا).
+  const [linkInput, setLinkInput] = useState('');
+  const [posterLinkInput, setPosterLinkInput] = useState('');
+  const [pendingPoster, setPendingPoster] = useState<{ dataUrl: string; name: string } | null>(null);
+  const [posterLoading, setPosterLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [recording, setRecording] = useState(false);
@@ -92,6 +100,7 @@ export default function DisplayScreen() {
   const openAddForType = (type: MediaType) => {
     setNewType(type);
     setPendingFile(null);
+    setLinkInput(''); setPosterLinkInput(''); setPendingPoster(null);
     setShowAdd(true);
   };
 
@@ -109,6 +118,32 @@ export default function DisplayScreen() {
     e.target.value = '';
   };
 
+  const handlePosterFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPosterLoading(true);
+    try {
+      const dataUrl = await readFileAsDataURL(file);
+      setPendingPoster({ dataUrl, name: file.name });
+    } finally {
+      setPosterLoading(false);
+    }
+    e.target.value = '';
+  };
+
+  /** يستخدم رابط جاهز بدل رفع ملف — مفيد خصوصًا للفيديوهات (رابط
+   *  استضافة خارجي بدل base64 ثقيل). */
+  const applyLink = () => {
+    if (!linkInput.trim()) return;
+    setPendingFile({ dataUrl: linkInput.trim(), name: linkInput.trim() });
+    if (!newTitle.trim()) setNewTitle('رابط خارجي');
+  };
+  const applyPosterLink = () => {
+    if (!posterLinkInput.trim()) return;
+    setPendingPoster({ dataUrl: posterLinkInput.trim(), name: 'رابط غلاف' });
+    setPosterLinkInput('');
+  };
+
   const addItem = () => {
     if (!newTitle.trim()) return;
     const cfg = TYPE_CONFIG[newType];
@@ -119,14 +154,15 @@ export default function DisplayScreen() {
       content: newContent.trim() || undefined,
       preview: cfg.isPreviewable ? pendingFile?.dataUrl : undefined,
       url: !cfg.isPreviewable && newType !== 'text' && newType !== 'audio_comment' ? pendingFile?.dataUrl : undefined,
+      posterUrl: newType === 'video' ? pendingPoster?.dataUrl : undefined,
       fileName: pendingFile?.name,
       createdAt: new Date().toISOString().split('T')[0],
     }, ...prev]);
-    setNewTitle(''); setNewContent(''); setPendingFile(null); setShowAdd(false);
+    setNewTitle(''); setNewContent(''); setPendingFile(null); setLinkInput(''); setPendingPoster(null); setPosterLinkInput(''); setShowAdd(false);
   };
 
   const cancelAdd = () => {
-    setShowAdd(false); setNewTitle(''); setNewContent(''); setPendingFile(null);
+    setShowAdd(false); setNewTitle(''); setNewContent(''); setPendingFile(null); setLinkInput(''); setPendingPoster(null); setPosterLinkInput('');
   };
 
   const deleteItem = (id: number) => setItems((prev) => prev.filter((i) => i.id !== id));
@@ -248,6 +284,38 @@ export default function DisplayScreen() {
                     <img src={pendingFile.dataUrl} alt="" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }} />
                   </div>
                 )}
+                {/* أو الصق رابط جاهز بدل الرفع — أفضل خيار للفيديوهات
+                    الكبيرة عشان منخزنش base64 ضخم هنا. */}
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+                  <input value={linkInput} onChange={(e) => setLinkInput(e.target.value)} placeholder="أو الصق رابط مباشر"
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', padding: '9px 14px', color: 'white', fontSize: '12px', outline: 'none', direction: 'ltr', textAlign: 'left' }}
+                    onKeyDown={(e) => e.key === 'Enter' && applyLink()} />
+                  <button onClick={applyLink} style={{ padding: '9px 16px', borderRadius: '10px', background: linkInput.trim() ? 'rgba(107,191,122,0.15)' : 'rgba(255,255,255,0.05)', border: 'none', color: linkInput.trim() ? '#6BBF7A' : 'rgba(255,255,255,0.3)', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>
+                    استخدام
+                  </button>
+                </div>
+                {/* صورة غلاف اختيارية للفيديو */}
+                {newType === 'video' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {pendingPoster ? <img src={pendingPoster.dataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <FileVideo size={16} color="rgba(255,255,255,0.3)" />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <input type="file" accept="image/*" id="poster-file-input" style={{ display: 'none' }} onChange={handlePosterFileChange} />
+                      <label htmlFor="poster-file-input" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', background: 'rgba(107,191,122,0.12)', border: '1px solid rgba(107,191,122,0.3)', color: '#6BBF7A', fontSize: '11px', cursor: 'pointer', marginBottom: '6px' }}>
+                        <Upload size={11} /> {posterLoading ? 'جارِ الرفع...' : 'صورة غلاف — رفع'}
+                      </label>
+                      <div style={{ display: 'flex', gap: '5px' }}>
+                        <input value={posterLinkInput} onChange={(e) => setPosterLinkInput(e.target.value)} placeholder="أو رابط صورة الغلاف"
+                          style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 10px', color: 'white', fontSize: '11px', outline: 'none', direction: 'ltr', textAlign: 'left' }}
+                          onKeyDown={(e) => e.key === 'Enter' && applyPosterLink()} />
+                        <button onClick={applyPosterLink} style={{ padding: '6px 10px', borderRadius: '8px', background: 'rgba(110,181,255,0.15)', border: 'none', color: '#6EB5FF', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>
+                          استخدام
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -294,6 +362,13 @@ export default function DisplayScreen() {
                 {item.preview && (
                   <div style={{ marginBottom: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
                     <img src={item.preview} alt={item.title} loading="lazy" decoding="async" style={{ width: '100%', maxHeight: '140px', objectFit: 'contain', display: 'block' }} />
+                  </div>
+                )}
+
+                {/* صورة غلاف الفيديو (لو متوفرة) */}
+                {item.type === 'video' && item.posterUrl && (
+                  <div style={{ marginBottom: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
+                    <img src={item.posterUrl} alt="" loading="lazy" decoding="async" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', display: 'block' }} />
                   </div>
                 )}
 
