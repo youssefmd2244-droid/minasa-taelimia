@@ -69,6 +69,9 @@ export function getGithubConfig(): GithubConfig {
 
 export function setGithubConfig(cfg: GithubConfig): void {
   try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); } catch { /* ignore */ }
+  // الـ sha المخزّن مؤقتًا (لتسريع الكتابة) بتاع ملف/ريبو تاني — لازم يتمسح
+  // عشان مانحاولش نكتب بيه على الملف الجديد بالغلط.
+  cachedSha = undefined;
 }
 
 export function isGithubConfigured(): boolean {
@@ -87,14 +90,46 @@ function b64Encode(str: string): string {
 }
 
 // ── قراءة (لأي مستخدم — مفيش توكن مطلوب، الريبو عام) ────────────────
+//
+// باگ تم اكتشافه وإصلاحه هنا (سبب رئيسي لـ"عامل تخزين GitHub ومبلقيش
+// حاجة اتحفظت"): raw.githubusercontent.com بيتقدّم عن طريق CDN (Fastly)
+// وبيعمل cache للملف بغض النظر تقريبًا عن أي ?query عشان تمنع الكاش —
+// ده باگ معروف وموثّق من GitHub نفسها، وبياخد من 5 دقايق لحد ساعات لحد
+// ما ينزل التحديث فعليًا. يعني: الكتابة (PUT) بتنجح فورًا وبتتسجل في
+// الريبو الحقيقي، لكن أي حد (بما فيه الأدمن نفسه) بيقرا بعدها بثواني عن
+// طريق raw.githubusercontent.com كان ممكن يشوف النسخة القديمة ويحس إن
+// حاجة "ماتحفظتش" مع إنها اتحفظت فعليًا على GitHub.
+// الحل: نستخدم jsDelivr (CDN تاني بيقرا من نفس الريبو) لأنه بيوفر
+// "purge" endpoint بنناديه فورًا بعد كل نشر ناجح — وده بيجبر الكاش يتنضف
+// خلال ثواني معدودة بدل ما نستنى مدة الكاش الافتراضية. raw.githubusercontent
+// لسه موجود كخطة احتياطية (fallback) لو jsDelivr فشل لأي سبب.
+function getJsdelivrUrl(cfg: GithubConfig): string {
+  const branch = cfg.branch || 'main';
+  return `https://cdn.jsdelivr.net/gh/${cfg.owner}/${cfg.repo}@${branch}/${cfg.path}`;
+}
+
+function getRawGithubUrl(cfg: GithubConfig): string {
+  const branch = cfg.branch || 'main';
+  return `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${branch}/${cfg.path}`;
+}
+
+/** يجبر كاش jsDelivr يتنضف فورًا لآخر نسخة من الملف (بتتنادى تلقائيًا بعد كل نشر ناجح). لو فشلت مش مشكلة — بيرجع fallback للقراءة العادية على أي حال. */
+async function purgeJsdelivrCache(cfg: GithubConfig): Promise<void> {
+  const branch = cfg.branch || 'main';
+  const purgeUrl = `https://purge.jsdelivr.net/gh/${cfg.owner}/${cfg.repo}@${branch}/${cfg.path}`;
+  try { await fetch(purgeUrl, { cache: 'no-store' }); } catch { /* ignore — مش حرجة */ }
+}
+
 export async function pullFromGithubRaw<T = unknown>(): Promise<T | null> {
   const cfg = getGithubConfig();
   if (!cfg.owner || !cfg.repo || !cfg.path) return null;
-  const branch = cfg.branch || 'main';
-  // ?t= لمنع أي كاش وسيط (متصفح/CDN) من إرجاع نسخة قديمة
-  const url = `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${branch}/${cfg.path}?t=${Date.now()}`;
+  // ?t= لمنع أي كاش وسيط (متصفح) من إرجاع نسخة قديمة على مستوى الجهاز.
   try {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch(`${getJsdelivrUrl(cfg)}?t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) return (await res.json()) as T;
+  } catch { /* نجرب raw.githubusercontent كبديل تحت */ }
+  try {
+    const res = await fetch(`${getRawGithubUrl(cfg)}?t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -113,7 +148,16 @@ export async function pullFromGithubRaw<T = unknown>(): Promise<T | null> {
 // نفس اللحظة على الإطلاق — كل نداء بينضم لطابور وبيتنفذ بعد اللي قبله.
 let githubWriteChain: Promise<GithubPushResult> = Promise.resolve({ ok: true });
 
-async function performGithubWrite(data: unknown, attempt = 1): Promise<GithubPushResult> {
+// تحسين سرعة الحفظ ("خليه أسرع من ثانية"): كل PUT كان لازم يسبقه GET
+// لجلب الـ sha الحالي — يعني كل حفظة بتستنى رحلتين شبكة كاملتين (ذهاب
+// وعودة) بدل واحدة. بما إن الكتابة بتحصل من خلال طابور واحد بالفعل (مفيش
+// كتابتين متزامنتين)، نقدر نحتفظ بآخر sha رجع من آخر نجاح ونستخدمه مباشرة
+// في PUT الجاي من غير أي GET يسبقه. لو حصل تعارض نادر (409/422 — مثلاً حد
+// عدّل الملف يدويًا من واجهة GitHub في نفس الوقت)، بنرجع نجيب sha جديد
+// بمحاولة إعادة تلقائية.
+let cachedSha: string | undefined;
+
+async function performGithubWrite(data: unknown, attempt = 1, forceRefetchSha = false): Promise<GithubPushResult> {
   const cfg = getGithubConfig();
   const branch = cfg.branch || 'main';
   const apiUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${encodeURIComponent(cfg.path).replace(/%2F/g, '/')}`;
@@ -123,19 +167,19 @@ async function performGithubWrite(data: unknown, attempt = 1): Promise<GithubPus
     'Content-Type': 'application/json',
   };
   try {
-    // لازم نجيب الـ sha الحالي (لو موجود) في كل محاولة (خصوصًا محاولات
-    // إعادة المحاولة بعد تعارض) عشان نضمن إننا بنكتب فوق آخر نسخة فعلاً.
-    let sha: string | undefined;
-    const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, {
-      headers,
-      cache: 'no-store',
-    });
-    if (getRes.ok) {
-      const info = await getRes.json();
-      sha = info.sha;
-    } else if (getRes.status !== 404) {
-      const err = await getRes.json().catch(() => ({}));
-      return { ok: false, message: err.message || `تعذّر التحقق من الملف الحالي (${getRes.status})` };
+    let sha: string | undefined = cachedSha;
+    if (!sha || forceRefetchSha) {
+      const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, {
+        headers,
+        cache: 'no-store',
+      });
+      if (getRes.ok) {
+        const info = await getRes.json();
+        sha = info.sha;
+      } else if (getRes.status !== 404) {
+        const err = await getRes.json().catch(() => ({}));
+        return { ok: false, message: err.message || `تعذّر التحقق من الملف الحالي (${getRes.status})` };
+      }
     }
 
     const content = b64Encode(JSON.stringify(data, null, 2));
@@ -153,13 +197,20 @@ async function performGithubWrite(data: unknown, attempt = 1): Promise<GithubPus
       const err = await putRes.json().catch(() => ({}));
       const isConflict = putRes.status === 409 || (putRes.status === 422 && /does not match|sha/i.test(String(err.message || '')));
       // تعارض الـ sha ممكن يحصل حتى مع الطابور (مثلاً حد عدّل الملف يدويًا
-      // من واجهة GitHub في نفس اللحظة) — بنعيد المحاولة بجيب sha جديد
-      // تلقائيًا لحد 3 مرات قبل ما نستسلم ونبلّغ المستخدم فعليًا.
+      // من واجهة GitHub في نفس اللحظة، أو الـ sha المحفوظ بقى قديم) —
+      // بنعيد المحاولة بجيب sha جديد فعليًا (مش من الكاش) تلقائيًا لحد 3
+      // مرات قبل ما نستسلم ونبلّغ المستخدم فعليًا.
       if (isConflict && attempt < 3) {
-        return performGithubWrite(data, attempt + 1);
+        cachedSha = undefined;
+        return performGithubWrite(data, attempt + 1, true);
       }
       return { ok: false, message: err.message || `فشل النشر على GitHub (${putRes.status})` };
     }
+    const putInfo = await putRes.json().catch(() => ({}));
+    cachedSha = putInfo?.content?.sha ?? undefined;
+    // نجبر كاش jsDelivr يتنضف فورًا (بدون انتظار) عشان أي قراءة جاية —
+    // حتى لو بعد أقل من ثانية — تلاقي النسخة الجديدة مش القديمة.
+    void purgeJsdelivrCache(cfg);
     return { ok: true };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
