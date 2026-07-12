@@ -214,7 +214,7 @@
       "isDeleted": false,
       "sectionId": 2,
       "isFeatured": false,
-      "showOnHome": false,
+      "showOnHome": true,
       "attachments": [],
       "contentBody": "",
       "allowDownload": false
@@ -294,5 +294,5 @@
   ],
   "siteTexts": {},
   "siteImages": {},
-  "savedAt": "2026-07-12T13:21:24.701Z"
+  "savedAt": "2026-07-12T13:21:25.932Z"
 }
