@@ -46,21 +46,51 @@ export const ADMIN_DATA_EVENT = 'eduverse-admin-data-changed';
 // كل ما نبدأ أي عملية حفظ محلية، ونرفض تطبيق أي نسخة remote توصل خلالها.
 const LOCAL_WRITE_GUARD_KEY = 'eduverse_local_write_guard_until';
 const LOCAL_WRITE_GUARD_MS = 8000;
+// باگ تم اكتشافه وإصلاحه هنا (سبب رئيسي لـ"بضيف صورة، بتظهر، وبعد ما
+// أقفل التطبيق وأفتحه تاني بتختفي" — خصوصًا مع مصدر GitHub):
+// الحماية القديمة كانت مؤقتة بس (8 ثواني) وبتفترض إن أي كتابة محلية
+// بتوصل فعليًا للسحابة خلال المدة دي. لكن لو النشر على GitHub فشل
+// فعليًا (زي Token ناقص/غلط، أو الريبو مش مضبوط) الفشل ده كان بيحصل
+// بصمت في الخلفية (console.error بس)، والنسخة المحلية الجديدة تفضل
+// "غير متزامنة" فعليًا لفترة أطول بكتير من 8 ثواني — أحيانًا للأبد.
+// فلما التطبيق يتقفل ويتفتح تاني (الحماية المؤقتة خلصت من زمان)،
+// pullRemoteAppData بيسحب نسخة GitHub القديمة (اللي ما اتحدثتش لأن
+// النشر فشل) ويمسح بيها آخر تعديل محلي.
+// الحل: نضيف علم دائم "فيه تغيير محلي لسه مش متأكد إنه اتزامن بنجاح"
+// (PENDING_UNSYNCED_KEY) بيتمسح بس لما النشر يخلص بنجاح فعليًا على كل
+// مصدر مفعّل. طول ما العلم ده موجود، مفيش أي نسخة remote هتُطبَّق فوق
+// البيانات المحلية — حتى لو مرت أيام — لحد ما التغيير يتأكد إنه اتحفظ
+// فعلاً على السحابة (أو الأدمن يصلّح إعدادات GitHub/Supabase وتنجح
+// المحاولة اللي بعدها).
+const PENDING_UNSYNCED_KEY = 'eduverse_pending_unsynced_change';
+
+function markSyncPending() {
+  try { localStorage.setItem(PENDING_UNSYNCED_KEY, '1'); } catch { /* ignore */ }
+}
+
+function markSyncConfirmed() {
+  try { localStorage.removeItem(PENDING_UNSYNCED_KEY); } catch { /* ignore */ }
+}
+
+function hasPendingUnsyncedChange(): boolean {
+  try { return localStorage.getItem(PENDING_UNSYNCED_KEY) === '1'; } catch { return false; }
+}
 
 function extendLocalWriteGuard() {
   try { localStorage.setItem(LOCAL_WRITE_GUARD_KEY, String(Date.now() + LOCAL_WRITE_GUARD_MS)); } catch { /* ignore */ }
+  markSyncPending();
 }
 
-/** true لو في كتابة محلية حصلت أو بتحصل دلوقتي قريب — أي نسخة remote
- *  توصل خلال النافذة دي المفروض تتجاهل، عشان منمسحش تعديل حديث بنسخة
- *  أقدم لسه واصلة متأخرة. */
+/** true لو في كتابة محلية حصلت أو بتحصل دلوقتي قريب (نافذة الـ8 ثواني)،
+ *  أو لو آخر تعديل محلي لسه مش متأكد إنه اتزامن بنجاح مع السحابة —
+ *  في الحالتين، أي نسخة remote توصل المفروض تتجاهل تمامًا عشان منمسحش
+ *  تعديل حقيقي محلي بنسخة سحابية أقدم (أو ببساطة فاشلة النشر). */
 export function isLocalWriteGuardActive(): boolean {
   try {
     const until = Number(localStorage.getItem(LOCAL_WRITE_GUARD_KEY) || '0');
-    return Date.now() < until;
-  } catch {
-    return false;
-  }
+    if (Date.now() < until) return true;
+  } catch { /* ignore */ }
+  return hasPendingUnsyncedChange();
 }
 
 /** Fired by AdminDashboard.tsx every time it persists a change. */
@@ -305,20 +335,45 @@ let pendingPushData: RawAdminData | null = null;
 
 function runGithubAndSupabasePush(data: RawAdminData): void {
   const source = getContentSource();
-  if ((source === 'supabase' || source === 'both') && isSupabaseConfigured && supabase) {
-    void supabase.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data }).then(({ error }) => {
-      notifySyncStatus({ ok: !error, source: 'supabase', message: error?.message });
-    });
+  const wantsSupabase = (source === 'supabase' || source === 'both') && isSupabaseConfigured && !!supabase;
+  const wantsGithub = (source === 'github' || source === 'both') && isGithubConfigured();
+
+  const tasks: Promise<boolean>[] = [];
+
+  if (wantsSupabase) {
+    tasks.push(
+      supabase!.from(APP_DATA_TABLE).upsert({ id: APP_DATA_ROW_ID, data }).then(({ error }) => {
+        notifySyncStatus({ ok: !error, source: 'supabase', message: error?.message });
+        return !error;
+      })
+    );
   }
-  if ((source === 'github' || source === 'both') && isGithubConfigured()) {
+  if (wantsGithub) {
     // pushToGithub بنفسه بيدخل في طابور واحد للريبو (شوف githubStorage.ts)
     // فمفيش خطر تعارض حتى لو الحفظ التلقائي ده اشتغل في نفس اللحظة
     // اللي فيها المستخدم ضاغط "احفظ الآن" يدويًا.
-    void pushToGithub(data).then((result) => {
-      if (!result.ok) console.error('[adminBridge] pushAppData (github, background) failed:', result.message);
-      notifySyncStatus({ ok: result.ok, source: 'github', message: result.message });
-    });
+    tasks.push(
+      pushToGithub(data).then((result) => {
+        if (!result.ok) console.error('[adminBridge] pushAppData (github, background) failed:', result.message);
+        notifySyncStatus({ ok: result.ok, source: 'github', message: result.message });
+        return result.ok;
+      })
+    );
   }
+
+  if (tasks.length === 0) {
+    // مفيش مصدر سحابي مفعّل خالص — مفيش حاجة نتزامن معاها، يبقى مفيش
+    // خطر إن نسخة remote تمسح البيانات المحلية (مفيش remote أصلاً).
+    markSyncConfirmed();
+    return;
+  }
+
+  void Promise.all(tasks).then((results) => {
+    // العلم بيتمسح بس لو كل المصادر المفعّلة نجحت فعلاً — لو أي واحد
+    // فشل (زي GitHub Token غلط) بيفضل العلم موجود عشان نحمي البيانات
+    // المحلية من أي نسخة remote قديمة لحد ما النشر ينجح فعلاً.
+    if (results.every(Boolean)) markSyncConfirmed();
+  });
 }
 
 /** يرفع نسخة جديدة من بيانات لوحة الإدارة (Supabase و/أو GitHub حسب مصدر المحتوى المختار)، مع debounce بسيط لتقليل الطلبات. */
@@ -417,6 +472,11 @@ export async function pushAppDataNow(data: RawAdminData): Promise<{ ok: boolean;
     supabaseOk === false ? `Supabase: ${supabaseMessage}` : null,
     githubOk === false ? `GitHub: ${githubMessage}` : null,
   ].filter(Boolean).join(' | ') || undefined;
+
+  // نفس مبدأ runGithubAndSupabasePush: العلم بيتمسح بس لو كل مصدر مفعّل
+  // نجح فعلاً — عشان "حفظ الآن" يديله نفس الحماية الحقيقية بتاعة الحفظ
+  // التلقائي، مش بس تأكيد بصري للأدمن وهو النسخة المحلية لسه مش متزامنة.
+  if (allOk) markSyncConfirmed();
 
   return { ok: allOk, cloud: anyCloudAttempted, message };
 }
